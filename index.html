@@ -322,6 +322,9 @@
                     <div id="admin-gate-error" style="color:var(--fail-red);font-size:12px;margin-top:8px;display:none;">Incorrect passcode.</div>
                 </div>
                 <div class="admin-content" id="admin-content">
+                    <div style="background:rgba(24,160,251,0.07);border:1px solid rgba(24,160,251,0.2);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:var(--accent-blue);line-height:1.5;margin-bottom:14px;">
+                        <b>Heads up:</b> Changes here are saved locally. To make them permanent for everyone, click <button onclick="exportBrandsJSON()" style="background:none;border:none;color:var(--accent-blue);cursor:pointer;font-size:12px;padding:0;text-decoration:underline;">Export brands.json</button> and commit it to your GitHub repo.
+                    </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                         <div style="font-size:13px;font-weight:600;">Brand Profiles</div>
                         <button class="btn-primary btn-sm" onclick="newBrandProfile()">
@@ -544,29 +547,42 @@
      JAVASCRIPT
 ═══════════════════════════════════════════════ -->
 <script>
-// ── BRAND PROFILES ─────────────────────────────────────────────────────────
-const ADMIN_PASSCODE = 'studio24'; // Change this to your passcode
-const BRAND_STORAGE_KEY = 'cqa_brand_profiles_v1';
-const ACTIVE_BRAND_KEY  = 'cqa_active_brand_v1';
+// ── BRAND PROFILES — JSON-backed ────────────────────────────────────────────
+const ADMIN_PASSCODE = 'studio24';
+const BRANDS_JSON_URL = './brands.json';
+const ACTIVE_BRAND_KEY = 'cqa_active_brand_v1';
+const LOCAL_BRANDS_KEY = 'cqa_local_brands_override';
 
-function loadBrands() {
+let brandsCache = [];
+
+async function loadBrandsFromJSON() {
     try {
-        return JSON.parse(localStorage.getItem(BRAND_STORAGE_KEY)) || [];
-    } catch(e) { return []; }
+        const res = await fetch(BRANDS_JSON_URL + '?t=' + Date.now());
+        if (res.ok) { const data = await res.json(); brandsCache = data.brands || []; }
+    } catch(e) { console.warn('Could not fetch brands.json'); }
+    try {
+        const local = JSON.parse(localStorage.getItem(LOCAL_BRANDS_KEY) || '[]');
+        local.forEach(lb => { const idx = brandsCache.findIndex(b => b.id === lb.id); if (idx >= 0) brandsCache[idx] = lb; else brandsCache.push(lb); });
+    } catch(e) {}
+    updateBrandBadge();
+    updateUploadBrandNotice();
 }
-function saveBrands(brands) {
-    localStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(brands));
-}
+function saveLocalBrands(brands) { localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(brands)); }
+function getLocalBrands() { try { return JSON.parse(localStorage.getItem(LOCAL_BRANDS_KEY) || '[]'); } catch(e) { return []; } }
 function getActiveBrand() {
     const id = localStorage.getItem(ACTIVE_BRAND_KEY);
     if (!id) return null;
-    return loadBrands().find(b => b.id === id) || null;
+    return brandsCache.find(b => b.id === id) || null;
 }
 function setActiveBrand(id) {
     if (id) localStorage.setItem(ACTIVE_BRAND_KEY, id);
     else localStorage.removeItem(ACTIVE_BRAND_KEY);
     updateBrandBadge();
     updateUploadBrandNotice();
+}
+function exportBrandsJSON() {
+    const blob = new Blob([JSON.stringify({ brands: brandsCache }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'brands.json'; a.click();
 }
 
 function updateBrandBadge() {
@@ -623,7 +639,7 @@ function switchBrandTab(tab, btn) {
 }
 
 function renderBrandSelectList() {
-    const brands = loadBrands();
+    const brands = brandsCache;
     const active = getActiveBrand();
     const container = document.getElementById('brand-select-list');
     let html = `<div class="no-brand-option ${!active ? 'active-brand' : ''}" onclick="selectBrand(null)">
@@ -665,7 +681,7 @@ function checkAdminPasscode() {
 }
 
 function renderAdminContent() {
-    const brands = loadBrands();
+    const brands = brandsCache;
     const list = document.getElementById('brand-editor-list');
     if (brands.length === 0) {
         list.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">No brands yet. Click "+ New Brand" to create one.</div>`;
@@ -696,8 +712,8 @@ function editBrandProfile(id) {
 
 function deleteBrandProfile(id) {
     if (!confirm('Delete this brand profile?')) return;
-    let brands = loadBrands().filter(b => b.id !== id);
-    saveBrands(brands);
+    brandsCache = brandsCache.filter(b => b.id !== id);
+    saveLocalBrands(getLocalBrands().filter(b => b.id !== id));
     if (getActiveBrand()?.id === id) setActiveBrand(null);
     editingBrandId = null;
     renderAdminContent();
@@ -776,7 +792,6 @@ function removePaletteSwatch(btn) {
 function saveBrandProfile(existingId) {
     const name = document.getElementById('bf-name').value.trim();
     if (!name) { alert('Brand name is required.'); return; }
-    const brands = loadBrands();
     const profile = {
         id: existingId || ('brand_' + Date.now()),
         name,
@@ -787,9 +802,12 @@ function saveBrandProfile(existingId) {
         voiceTone: document.getElementById('bf-voice').value.trim(),
         customRules: document.getElementById('bf-rules').value.trim(),
     };
-    const idx = brands.findIndex(b => b.id === profile.id);
-    if (idx >= 0) brands[idx] = profile; else brands.push(profile);
-    saveBrands(brands);
+    const idx = brandsCache.findIndex(b => b.id === profile.id);
+    if (idx >= 0) brandsCache[idx] = profile; else brandsCache.push(profile);
+    const locals = getLocalBrands();
+    const li = locals.findIndex(b => b.id === profile.id);
+    if (li >= 0) locals[li] = profile; else locals.push(profile);
+    saveLocalBrands(locals);
     editingBrandId = null;
     renderAdminContent();
     document.getElementById('brand-form-container').innerHTML = '';
@@ -836,6 +854,54 @@ async function extractDominantColors(file, count = 10) {
         img.src = URL.createObjectURL(file);
     });
 }
+// ── PIXEL RESAMPLING — replace AI color guesses with actual file pixel values ──
+async function resampleContrastColors(file, aiAnalyses) {
+    if (!file || !aiAnalyses || aiAnalyses.length === 0 || file.type.includes('pdf')) return aiAnalyses;
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            const W = img.width, H = img.height;
+            const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0);
+            const resampled = aiAnalyses.map(item => {
+                const aiTxt = extractValidHex(item.textColorHex || item.textcolorhex, null);
+                const aiBg  = extractValidHex(item.backgroundColorHex || item.backgroundcolorhex, null);
+                if (!aiTxt || !aiBg) return { ...item, _sampled: false };
+                const sampledTxt = findClosestPixelColor(ctx, W, H, aiTxt);
+                const sampledBg  = findClosestPixelColor(ctx, W, H, aiBg);
+                return { ...item, textColorHex: sampledTxt || aiTxt, backgroundColorHex: sampledBg || aiBg, _sampled: !!(sampledTxt || sampledBg) };
+            });
+            URL.revokeObjectURL(img.src);
+            resolve(resampled);
+        };
+        img.onerror = () => resolve(aiAnalyses);
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+function findClosestPixelColor(ctx, W, H, targetHex) {
+    const target = hexToRgb(targetHex);
+    if (!target) return null;
+    const STEP = 6, TOLERANCE = 35;
+    const counts = {};
+    for (let y = 0; y < H; y += STEP) {
+        for (let x = 0; x < W; x += STEP) {
+            const px = ctx.getImageData(x, y, 1, 1).data;
+            if (px[3] < 128) continue;
+            const dist = Math.sqrt(Math.pow(px[0]-target.r,2)+Math.pow(px[1]-target.g,2)+Math.pow(px[2]-target.b,2));
+            if (dist > TOLERANCE) continue;
+            const r = Math.round(px[0]/4)*4, g = Math.round(px[1]/4)*4, b = Math.round(px[2]/4)*4;
+            const key = r+','+g+','+b;
+            counts[key] = (counts[key]||0) + 1;
+        }
+    }
+    const best = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+    if (!best) return null;
+    const [r,g,b] = best[0].split(',').map(Number);
+    return '#'+[r,g,b].map(v=>Math.min(255,v).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
 
 // Color distance (euclidean in RGB) — used for on-brand palette matching
 function colorDistance(hex1, hex2) {
@@ -914,7 +980,7 @@ Do NOT transcribe brand wordmarks or logos.
 3. COLOR EXTRACTION & CONTRAST
 Use the programmatically-extracted dominant colors provided above as your primary color reference. Your job is to IDENTIFY WHICH ELEMENT each color belongs to (headline text, body text, background, button fill, etc.) — not to guess hex values.
 For each text-background pair, confirm or slightly refine the hex based on visual inspection, but stay close to the provided values.
-Identify up to 6 distinct text-to-background combinations.
+Identify up to 6 distinct text-to-background combinations. The dominant colors extracted from the actual file pixels are listed above — use ONLY those hex values for textColorHex/backgroundColorHex. Your job is to identify WHICH element each color belongs to, not guess colors.
 Determine WCAG pass/fail for Regular Text (<18pt), Large Text (>=18pt), and Graphics.
 
 4. COMPLIANCE
@@ -963,8 +1029,7 @@ let processingStartTime = 0; let processingTimer = null;
 let duplicateResolve = null;
 
 // ── INIT ───────────────────────────────────────────────────────────────────
-updateBrandBadge();
-updateUploadBrandNotice();
+loadBrandsFromJSON();
 
 // ── UTILITIES ──────────────────────────────────────────────────────────────
 function sanitizeImage(file) {
@@ -1308,6 +1373,9 @@ async function processSingleAsset(i) {
         if(!rawText||rawText.trim()==='') throw new Error('Webhook returned an empty response.');
         let cleanText = rawText.replace(/^```json\s*/mi,'').replace(/\s*```$/m,'').trim();
         const aiData = JSON.parse(cleanText);
+        if (aiData.contrastAnalyses && aiData.contrastAnalyses.length > 0 && !fileQueue[i].type.includes('pdf')) {
+            aiData.contrastAnalyses = await resampleContrastColors(fileQueue[i], aiData.contrastAnalyses);
+        }
         campaignData[i].ai = aiData;
         let fails = calculateFailCount(aiData, activeStandard);
         campaignData[i].status = fails > 0 ? 'fail' : 'pass';
@@ -1546,9 +1614,10 @@ function renderContrastBlocks(analyses) {
         let n=item.sectionName||item.section||item.title||item.name||`Section ${i+1}`;
         let colors=getColorsFromAI(item);let bTxt=colors.txt;let bBg=colors.bg;
         let rat=calcRatio(bTxt,bBg);let pAll=isPass(rat,false)&&isPass(rat,true);
+        const sb=item._sampled?` <span style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;background:rgba(20,174,92,0.15);color:var(--pass-green);border:1px solid rgba(20,174,92,0.3);">SAMPLED</span>`:'';
         let html=`<div class="contrast-block">
             <div class="c-header">
-                <div style="font-weight:600;font-size:13px;color:var(--text-main);line-height:1.4;padding-right:12px;">${n}</div>
+                <div style="font-weight:600;font-size:13px;color:var(--text-main);line-height:1.4;padding-right:12px;">${n}${sb}</div>
                 <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;white-space:nowrap;color:${pAll?'var(--pass-green)':'var(--fail-red)'}" id="status-ind-${i}">
                     <div class="status-dot ${pAll?'pass':'fail'}"></div><span class="status-text">${pAll?'Pass':'Fail'}</span>
                     <span id="rat-${i}" style="font-family:'SF Mono',monospace;">${rat.toFixed(2)}</span>:1

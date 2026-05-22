@@ -1,0 +1,50 @@
+{
+  "brands": [
+    {
+      "id": "brand_national_grid",
+      "name": "National Grid",
+      "accentColor": "#00148C",
+      "palette": [
+        "#00148C",
+        "#00AFF0",
+        "#000000",
+        "#FFFFFF",
+        "#F0F0F0",
+        "#55555A",
+        "#500A78",
+        "#8964BD",
+        "#C800A1",
+        "#D93D1E",
+        "#FFB45A",
+        "#0073CD",
+        "#009DDC",
+        "#008391",
+        "#00873F"
+      ],
+      "fontPrimary": "Helvetica Neue Bold / Helvetica Neue LT 75 Bold",
+      "fontSecondary": "Helvetica Neue Light / Helvetica Neue LT 45 Light",
+      "voiceTone": "Confident, clear, direct, accessible, professional. Headlines bold and immediate. No casual language. Active voice.",
+      "customRules": "PRIMARY COLORS: Core Blue (#00148C) is the lead color — always lead with it. Light Blue (#00AFF0), Black (#000000), White (#FFFFFF). SECONDARY PALETTE: Only use secondary colors (purples, oranges, teals, greens) for illustrations, infographics, charts, and graphs — not for primary communications.\n\nLOGO: Never split, stretch, squeeze, rotate, recreate, recolour, outline, mask or distort the logo. Logo appears in Core Blue on white, or White reversed out of Core Blue. On photography, ensure low-contrast area directly behind logo. Minimum 35mm print / 140px digital width. Exclusion zone = 2x height and width of the 'n'.\n\nTYPOGRAPHY: Helvetica Neue Bold for headlines and subheadings. Helvetica Neue Light for body copy. Helvetica Neue Roman for white-out body copy on coloured backgrounds. For internal/system use only: Arial Bold and Arial Regular. Headlines in Core Blue on white background. Headlines in White on Core Blue background. Body copy in Dark Grey (#55555A). Subheadings in Black. Max 4 type sizes. Leading always 105%. Text always left-aligned.\n\nCOLOUR USAGE: Core Blue on White = AAA. Core Blue on Light Grey = AAA. Dark Grey on White = AAA. All communications must meet minimum WCAG AA (4.5:1 normal text, 3:1 large text). Do not rely on colour alone to convey information.\n\nGRADIENT: Core Blue > Light Blue > White gradient only for events, specific covers, and social backgrounds. Never use gradient on standard documents.\n\nPHOTOGRAPHY: Always in context, never in studios. People must look natural with a clear point of focus. Apply corner radius to images (20px for A5-A3/web, 40px for A2-A0, 80px above A0). Does not apply to full bleed photography.\n\nLAYOUT: 12-column grid. Three layout types: (1) Full Bleed Imagery for primary material, (2) Core Blue background for secondary material, (3) Gradient for events/social only."
+    },
+    {
+      "id": "brand_nyserda",
+      "name": "NYSERDA",
+      "accentColor": "#FACE00",
+      "palette": [
+        "#0B5583",
+        "#6E9AB5",
+        "#D5E5EB",
+        "#FACE00",
+        "#000000",
+        "#62666A",
+        "#D0D0CE",
+        "#EDEDED",
+        "#FFFFFF"
+      ],
+      "fontPrimary": "Proxima Nova (Regular, Semibold, Bold, Extrabold — and italic variants)",
+      "fontSecondary": "Arial (fallback when Proxima Nova is unavailable)",
+      "voiceTone": "Clear, accessible, inclusive, and professional. Communications should be legible and understandable to all New Yorkers. Prioritize clarity and broad reach over stylistic flourish.",
+      "customRules": "PRIMARY COLORS: Primary Core Blue (#0B5583) is the dominant brand color. Secondary Core Blue (#6E9AB5) supports it. Tertiary Core Blue (#D5E5EB) is used for light backgrounds. Core Accent Gold (#FACE00) is used sparingly to highlight and isolate content.\n\nSECONDARY COLORS: Black (#000000), Dark Grey (#62666A), Mid Grey (#D0D0CE), Light Grey (#EDEDED), White (#FFFFFF).\n\nSEASONAL / RESIDENTIAL PALETTE — Use only for residential product communications. Three sub-palettes available:\n\nSeasonal Agnostic: #0B5583, #0077C8, #D7E8F5, #C5E9FF, #FCF7D8, #50751A, #7BA24C, #9AB871\n\nSummer: #F65F1E, #FFB606, #585B20, #7D843C, #909F58\n\nWinter: #375EB3, #C2D0ED, #0E2436, #234B91\n\nCOLOR USAGE: Agency grouping colors (primary and secondary palette above) must be used first for all NYSERDA communications. Seasonal palettes are reserved exclusively for residential product work and should not appear in general agency communications. When collaborating with other NYS agencies, use only the NYS core palette.\n\nBRAND MARK: Features the outline of New York State in Primary Core Blue intersecting with the state name in Secondary Core Blue. Always surround with clear space equal to the height of the 'N' in 'NEW YORK STATE'. Minimum size: 0.50 inches in height. Never alter, stretch, rotate, or recolor outside approved palettes.\n\nTYPOGRAPHY: Proxima Nova is the primary font for all body copy and titles. Available via Adobe Fonts for desktop use. A separate license is required for agency websites. Use Arial as a substitute when Proxima Nova is unavailable. Avoid font sizes below 12pt, especially for audiences with visual impairments or translated documents.\n\nACCESSIBILITY: Follow WCAG 2.2 AA standards. Normal text (16pt Regular) requires 4.5:1 contrast ratio minimum. Large text (18pt Regular or 14pt Bold) requires 3:1 minimum. Use high-contrast color pairings, legible font sizes, adequate negative space, and simple visual elements.\n\nPHOTOGRAPHY: Candid and unstaged — subjects should not look directly at camera. Clear focal point required. Do not stretch, use low-resolution, overly posed, heavily contrasted, or sensitive subject matter images.\n\nICONOGRAPHY: Stroke/outline style only — no fill. Stroke weight mirrors the NYS brand mark outline. Rounded line edges and terminals. Icons may use more than one approved color. Be mindful of contrast on various backgrounds.\n\nINFOGRAPHICS: Use agency palette first, then expand to NYS core palettes as needed."
+    }
+  ]
+}
