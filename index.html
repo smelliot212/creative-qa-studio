@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creative QA | Studio Workspace</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exifr/dist/lite.umd.js"></script>
+    <script type="module">
+        import * as gifuct from 'https://esm.sh/gifuct-js@2.1.2';
+        window.parseGIF = gifuct.parseGIF; window.decompressFrames = gifuct.decompressFrames;
+    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,300,0,0" />
+    <style>
+        :root {
+            --bg-base:#141414; --bg-panel:#1E1E21; --bg-card:#26262B; --bg-hover:#323238;
+            --border-color:#3A3A40; --text-main:#EAEAEA; --text-dim:#9999A1;
+            --accent-purple:#645CFF; --accent-blue:#18A0FB;
+            --pass-green:#14AE5C; --fail-red:#F24822; --warn-yellow:#F2C94C;
+            --font-ui:"Inter",sans-serif; --radius-sm:6px; --radius-md:8px; --radius-lg:12px;
+        }
+        body { margin:0; font-family:var(--font-ui); background:var(--bg-base); color:var(--text-main); display:flex; flex-direction:column; height:100vh; overflow:hidden; font-size:14px; -webkit-font-smoothing:antialiased; }
+        * { box-sizing:border-box; outline:none !important; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+
+        /* ── MODALS ── */
+        #global-drop-zone { position:fixed; inset:0; z-index:9999; background:rgba(20,20,20,0.85); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s ease; }
+        #global-drop-zone.active { opacity:1; pointer-events:all; }
+        .global-drop-content { border:2px dashed var(--accent-purple); border-radius:var(--radius-lg); padding:80px 120px; text-align:center; background:var(--bg-panel); box-shadow:0 0 60px rgba(100,92,255,0.3); pointer-events:none; transform:scale(0.95); transition:0.2s ease; }
+        #global-drop-zone.active .global-drop-content { transform:scale(1); }
+        .modal-overlay { position:fixed; inset:0; z-index:10000; background:rgba(0,0,0,0.7); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:0.2s; }
+        .modal-overlay.active { opacity:1; pointer-events:all; }
+        .modal-content { background:var(--bg-panel); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:24px; width:420px; box-shadow:0 10px 40px rgba(0,0,0,0.5); transform:translateY(10px); transition:0.2s; }
+        .modal-overlay.active .modal-content { transform:translateY(0); }
+        .modal-content h3 { margin:0 0 8px 0; font-size:16px; font-weight:600; }
+        .modal-content p { margin:0 0 20px 0; color:var(--text-dim); font-size:14px; line-height:1.4; }
+        .modal-actions { display:flex; justify-content:flex-end; gap:12px; }
+
+        /* ── BRAND MODAL ── */
+        #brand-modal .modal-content { width:580px; max-height:90vh; overflow-y:auto; padding:0; }
+        .brand-modal-header { padding:20px 24px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:var(--bg-panel); z-index:10; }
+        .brand-modal-header h3 { margin:0; font-size:16px; }
+        .brand-modal-body { padding:24px; }
+        .brand-tabs { display:flex; gap:4px; background:var(--bg-card); padding:3px; border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-bottom:24px; }
+        .brand-tab { flex:1; background:transparent; border:none; color:var(--text-dim); padding:7px 12px; border-radius:4px; cursor:pointer; font-size:13px; font-weight:500; transition:0.15s; }
+        .brand-tab.active { background:var(--accent-purple); color:white; }
+        .brand-tab-content { display:none; }
+        .brand-tab-content.active { display:block; animation:fadeIn 0.15s ease; }
+
+        /* Select tab */
+        .brand-list { display:flex; flex-direction:column; gap:8px; }
+        .brand-list-item { display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border-color); cursor:pointer; transition:0.15s; background:var(--bg-card); }
+        .brand-list-item:hover { border-color:var(--text-dim); background:var(--bg-hover); }
+        .brand-list-item.active-brand { border-color:var(--accent-purple); background:rgba(100,92,255,0.08); }
+        .brand-swatch { width:36px; height:36px; border-radius:8px; flex-shrink:0; border:1px solid rgba(255,255,255,0.1); }
+        .brand-list-name { font-weight:600; font-size:14px; }
+        .brand-list-meta { font-size:12px; color:var(--text-dim); margin-top:2px; }
+        .brand-list-check { margin-left:auto; color:var(--accent-purple); display:none; }
+        .brand-list-item.active-brand .brand-list-check { display:block; }
+        .no-brand-option { display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:var(--radius-md); border:1px dashed var(--border-color); cursor:pointer; transition:0.15s; color:var(--text-dim); margin-bottom:4px; }
+        .no-brand-option:hover { border-color:var(--text-dim); color:var(--text-main); }
+        .no-brand-option.active-brand { border-color:var(--text-dim); color:var(--text-main); background:var(--bg-card); }
+
+        /* Admin / Manage tab */
+        .admin-gate { text-align:center; padding:32px 0; }
+        .admin-gate p { color:var(--text-dim); font-size:13px; margin-bottom:16px; }
+        .admin-content { display:none; }
+        .admin-content.unlocked { display:block; }
+        .brand-editor-list { display:flex; flex-direction:column; gap:6px; margin-bottom:20px; }
+        .brand-editor-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-card); cursor:pointer; transition:0.15s; }
+        .brand-editor-item:hover { border-color:var(--accent-purple); }
+        .brand-editor-item.editing { border-color:var(--accent-purple); background:rgba(100,92,255,0.08); }
+        .brand-editor-swatch { width:24px; height:24px; border-radius:4px; border:1px solid rgba(255,255,255,0.15); flex-shrink:0; }
+        .brand-editor-name { font-size:13px; font-weight:500; flex:1; }
+        .brand-form { background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:20px; margin-top:8px; animation:fadeIn 0.15s ease; }
+        .form-row { margin-bottom:16px; }
+        .form-label { font-size:12px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; display:block; }
+        .form-input { width:100%; background:var(--bg-base); border:1px solid var(--border-color); color:var(--text-main); padding:9px 12px; border-radius:var(--radius-sm); font-size:13px; font-family:var(--font-ui); transition:0.15s; }
+        .form-input:focus { border-color:var(--accent-purple); }
+        .form-input::placeholder { color:var(--text-dim); }
+        textarea.form-input { resize:vertical; min-height:72px; line-height:1.5; }
+        .palette-editor { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        .palette-swatch-wrap { position:relative; }
+        .palette-swatch-input { width:36px; height:36px; border-radius:6px; border:1px solid var(--border-color); padding:2px; cursor:pointer; background:none; }
+        .palette-swatch-remove { position:absolute; top:-6px; right:-6px; width:16px; height:16px; border-radius:50%; background:var(--fail-red); border:none; color:white; font-size:10px; cursor:pointer; display:none; align-items:center; justify-content:center; line-height:1; }
+        .palette-swatch-wrap:hover .palette-swatch-remove { display:flex; }
+        .btn-add-swatch { width:36px; height:36px; border-radius:6px; border:1px dashed var(--border-color); background:transparent; color:var(--text-dim); cursor:pointer; font-size:20px; display:flex; align-items:center; justify-content:center; transition:0.15s; }
+        .btn-add-swatch:hover { border-color:var(--accent-purple); color:var(--accent-purple); }
+        .form-actions { display:flex; gap:8px; margin-top:20px; }
+
+        /* ── TOOLBAR ── */
+        .toolbar { height:56px; background:var(--bg-panel); border-bottom:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between; padding:0 20px; flex-shrink:0; z-index:100; }
+        .toolbar-group { display:flex; align-items:center; gap:12px; }
+        .icon-btn { background:transparent; border:none; color:var(--text-dim); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:6px; border-radius:var(--radius-sm); transition:0.15s; }
+        .icon-btn:hover { background:var(--bg-hover); color:var(--text-main); }
+        .icon-btn:disabled { opacity:0.3; cursor:not-allowed; }
+        .btn-primary { background:var(--accent-purple); color:white; border:none; padding:8px 16px; border-radius:var(--radius-sm); font-size:14px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:8px; transition:0.15s; min-width:160px; justify-content:center; }
+        .btn-primary:hover:not(:disabled) { background:#7871FF; }
+        .btn-primary:disabled { background:var(--bg-hover); color:var(--text-dim); cursor:not-allowed; }
+        .btn-danger { background:rgba(242,72,34,0.15)!important; color:var(--fail-red)!important; border:1px solid rgba(242,72,34,0.3)!important; }
+        .btn-danger:hover { background:rgba(242,72,34,0.25)!important; border-color:rgba(242,72,34,0.5)!important; }
+        .btn-secondary { background:transparent; border:1px solid var(--border-color); color:var(--text-main); padding:8px 16px; border-radius:var(--radius-sm); cursor:pointer; font-weight:500; font-size:14px; transition:0.15s; }
+        .btn-secondary:hover { background:var(--bg-hover); }
+        .btn-sm { padding:5px 12px; font-size:12px; min-width:unset; }
+
+        /* Brand Badge */
+        .brand-badge { display:flex; align-items:center; gap:9px; padding:6px 12px; border-radius:var(--radius-sm); border:1px solid var(--border-color); background:var(--bg-card); cursor:pointer; transition:0.15s; height:36px; }
+        .brand-badge:hover { border-color:var(--text-dim); background:var(--bg-hover); }
+        .brand-badge-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; border:1px solid rgba(255,255,255,0.2); }
+        .brand-badge-name { font-size:13px; font-weight:500; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .brand-badge-chevron { font-size:16px; color:var(--text-dim); }
+        .brand-badge.no-brand .brand-badge-dot { background:var(--border-color); }
+        .brand-badge.no-brand .brand-badge-name { color:var(--text-dim); }
+
+        /* ── VIEW STATES ── */
+        .view-state { display:none!important; flex:1; overflow:hidden; }
+        .view-state.active { display:flex!important; }
+        #upload-state { flex-direction:column; align-items:center; justify-content:center; background:var(--bg-base); }
+        .drop-zone { border:2px dashed var(--border-color); border-radius:var(--radius-lg); padding:80px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-panel); width:100%; max-width:560px; }
+        .drop-zone:hover { border-color:var(--accent-purple); background:var(--bg-hover); }
+        .drop-zone input { display:none; }
+        .upload-brand-notice { margin-top:20px; display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:var(--radius-sm); background:var(--bg-card); border:1px solid var(--border-color); font-size:13px; color:var(--text-dim); }
+        .upload-brand-notice.has-brand { border-color:rgba(100,92,255,0.3); background:rgba(100,92,255,0.06); color:var(--text-main); }
+        .upload-brand-dot { width:8px; height:8px; border-radius:50%; background:var(--border-color); flex-shrink:0; }
+        .upload-brand-notice.has-brand .upload-brand-dot { background:var(--accent-purple); }
+
+        /* ── LIBRARY ── */
+        #library-state { flex-direction:column; background:var(--bg-base); }
+        .library-header { display:flex; align-items:center; justify-content:flex-start; gap:20px; padding:14px 32px; border-bottom:1px solid var(--border-color); z-index:10; flex-shrink:0; }
+        .workspace-title-input { background:transparent; border:1px solid transparent; color:var(--text-main); font-size:16px; font-weight:600; font-family:var(--font-ui); padding:4px 8px; border-radius:4px; transition:0.2s; display:inline-block; min-width:20px; white-space:nowrap; }
+        .workspace-title-input:hover { border-color:var(--border-color); background:rgba(255,255,255,0.05); }
+        .workspace-title-input:focus { border-color:var(--accent-purple); background:var(--bg-panel); }
+        .segmented-control { display:flex; background:var(--bg-card); padding:2px; border-radius:6px; border:1px solid var(--border-color); }
+        .seg-btn { background:transparent; border:none; color:var(--text-dim); padding:4px 12px; font-size:13px; border-radius:4px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:500; transition:0.15s; }
+        .seg-btn.active { background:var(--accent-purple); color:white; }
+        .library-content { flex:1; overflow-y:auto; padding:32px; user-select:none; }
+        .lib-grid { display:grid; gap:24px; align-items:start; }
+        .lib-grid.size-s { grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); }
+        .lib-grid.size-m { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
+        .lib-grid.size-l { grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); }
+        .lib-card { background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-color); overflow:hidden; cursor:pointer; transition:transform 0.1s,border-color 0.1s,box-shadow 0.1s; display:flex; flex-direction:column; }
+        .lib-card:hover { border-color:var(--text-dim); transform:translateY(-2px); }
+        .lib-card.selected { border-color:var(--accent-purple); box-shadow:0 0 0 2px rgba(100,92,255,0.4); transform:translateY(-2px); background:#2A2A35; }
+        .lib-card-img { height:160px; background:#111; display:flex; align-items:center; justify-content:center; padding:8px; }
+        .lib-card-img img { max-width:100%; max-height:100%; object-fit:contain; pointer-events:none; }
+        .lib-card-info { padding:12px; border-top:1px solid var(--border-color); flex:1; display:flex; flex-direction:column; }
+        .lib-card-title { font-weight:500; margin-bottom:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:14px; }
+        .lib-card-meta { color:var(--text-dim); font-size:12px; display:flex; justify-content:space-between; align-items:center; }
+        .status-pill { padding:4px 8px; border-radius:100px; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:4px; border:1px solid transparent; }
+        .status-pill.pending { background:var(--bg-hover); color:var(--text-dim); }
+        .status-pill.loading { background:rgba(24,160,251,0.15); color:var(--accent-blue); border-color:rgba(24,160,251,0.3); }
+        .status-pill.pass { background:rgba(20,174,92,0.15); color:var(--pass-green); border-color:rgba(20,174,92,0.3); }
+        .status-pill.fail { background:rgba(242,72,34,0.15); color:var(--fail-red); border-color:rgba(242,72,34,0.3); }
+        .inline-note-input { width:100%; background:rgba(0,0,0,0.2); border:1px solid transparent; color:var(--text-main); font-size:12px; padding:6px; border-radius:4px; margin-top:8px; transition:0.2s; }
+        .inline-note-input:focus { border-color:var(--accent-purple); background:var(--bg-base); }
+        .lib-list { display:flex; flex-direction:column; gap:1px; background:var(--border-color); border-radius:var(--radius-md); overflow:hidden; }
+        .lib-list-header,.lib-list-row { display:grid; grid-template-columns:40px 2.5fr 1fr 1fr 1.5fr 2.5fr 2fr; gap:16px; padding:12px 16px; }
+        .lib-list-header { background:var(--bg-panel); color:var(--text-dim); font-size:12px; font-weight:600; text-transform:uppercase; }
+        .col-sortable { cursor:pointer; display:flex; align-items:center; gap:4px; user-select:none; }
+        .lib-list-row { background:var(--bg-card); cursor:pointer; align-items:center; font-size:13px; border-left:3px solid transparent; transition:0.1s; }
+        .lib-list-row:hover { background:var(--bg-hover); }
+        .lib-list-row.selected { background:rgba(100,92,255,0.08); border-left-color:var(--accent-purple); }
+        .list-thumb { width:32px; height:32px; border-radius:4px; object-fit:cover; background:#000; pointer-events:none; }
+
+        /* ── INSPECTOR ── */
+        #inspector-state { flex-direction:row; }
+        .canvas-area { flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+        .canvas-toolbar { height:48px; border-bottom:1px solid var(--border-color); display:flex; align-items:center; padding:0 16px; gap:12px; flex-shrink:0; }
+        .canvas-inner { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:40px 40px 20px; overflow:hidden; }
+        .img-container { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; border-radius:var(--radius-md); min-height:0; }
+        .preview-img,.gif-canvas { max-width:100%; max-height:100%; object-fit:contain; display:block; filter:drop-shadow(0 10px 40px rgba(0,0,0,0.5)); }
+        .pdf-iframe { width:100%; height:100%; border:none; border-radius:var(--radius-md); background:#fff; box-shadow:0 10px 40px rgba(0,0,0,0.5); }
+        .gif-scrubber-bar { width:100%; display:flex; align-items:stretch; margin-top:24px; background:var(--bg-panel); border-radius:var(--radius-md); border:1px solid var(--border-color); flex-shrink:0; overflow:hidden; }
+        .play-btn-wrapper { padding:12px 16px; background:var(--bg-panel); border-right:1px solid var(--border-color); z-index:2; display:flex; align-items:center; }
+        .play-btn { background:var(--accent-purple); color:white; border:none; width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:0.2s; }
+        .play-btn:hover { background:#7871FF; transform:scale(1.05); }
+        .frame-btns-container { display:flex; align-items:center; gap:8px; flex:1; overflow-x:auto; padding:12px 16px; scroll-behavior:smooth; min-width:0; }
+        .frame-btns-container::-webkit-scrollbar { height:6px; }
+        .frame-btns-container::-webkit-scrollbar-thumb { background:var(--border-color); border-radius:4px; }
+        .frame-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:var(--bg-hover); border:1px solid transparent; padding:6px 12px; border-radius:6px; cursor:pointer; transition:0.2s; white-space:nowrap; min-width:64px; }
+        .frame-btn:hover { background:var(--border-color); }
+        .frame-btn.active { background:var(--accent-purple); border-color:#FFFFFF; }
+        .f-num { font-size:13px; font-weight:600; color:var(--text-main); pointer-events:none; }
+        .f-time { font-size:11px; color:var(--text-main); opacity:0.7; font-family:"SF Mono",monospace; pointer-events:none; }
+        .frame-btn.active .f-num,.frame-btn.active .f-time { color:white; opacity:1; }
+
+        /* ── SIDEBAR ── */
+        .sidebar-right { width:380px; background:var(--bg-panel); border-left:1px solid var(--border-color); display:flex; flex-direction:column; flex-shrink:0; }
+        .sidebar-header { padding:12px 16px; border-bottom:1px solid var(--border-color); }
+        .tab-content { display:none; overflow-y:auto; flex:1; }
+        .tab-content.active { display:flex; flex-direction:column; }
+        .inspector-section { border-bottom:1px solid var(--border-color); padding:20px; }
+        .section-title { font-weight:600; font-size:12px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); }
+        .prop-row { display:flex; justify-content:space-between; margin-bottom:10px; font-size:13px; }
+        .prop-label { color:var(--text-dim); }
+        .prop-val { font-family:"SF Mono",monospace; text-align:right; }
+        .frame-pill-container { display:flex; flex-wrap:wrap; gap:6px; max-height:160px; overflow-y:auto; padding:12px; background:var(--bg-base); border:1px solid var(--border-color); border-radius:var(--radius-sm); margin-top:8px; }
+        .frame-pill { background:var(--bg-hover); border:1px solid transparent; font-family:"SF Mono",monospace; font-size:12px; padding:4px 8px; border-radius:4px; color:var(--text-main); transition:0.1s; cursor:pointer; }
+        .frame-pill:hover { border-color:var(--text-dim); }
+        .frame-pill.active { background:var(--accent-purple); color:white; border-color:#FFFFFF; box-shadow:0 0 0 2px rgba(100,92,255,0.4); transform:scale(1.05); z-index:2; position:relative; }
+        .stacked-field { margin-bottom:18px; }
+        .stacked-title { font-weight:600; font-size:11px; margin-bottom:5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; }
+        .stacked-val { font-size:13px; line-height:1.5; }
+        .copy-box { background:var(--bg-base); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:12px; position:relative; margin-bottom:18px; }
+        .copy-text { font-size:13px; line-height:1.5; color:var(--text-main); max-height:160px; overflow-y:auto; padding-right:24px; white-space:pre-wrap; word-break:break-word; }
+        .btn-copy { position:absolute; top:8px; right:8px; background:transparent; border:none; color:var(--text-dim); cursor:pointer; border-radius:4px; padding:4px; }
+        .btn-copy:hover { color:var(--text-main); background:var(--bg-hover); }
+
+        /* Brand check banner */
+        .brand-check-banner { margin:16px 20px 0; padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--border-color); font-size:12px; display:flex; align-items:flex-start; gap:8px; line-height:1.4; }
+        .brand-check-banner.unverified { background:rgba(242,196,76,0.07); border-color:rgba(242,196,76,0.25); color:var(--warn-yellow); }
+        .brand-check-banner.verified { background:rgba(100,92,255,0.06); border-color:rgba(100,92,255,0.25); color:#9997FF; }
+        .brand-check-banner.partial { background:rgba(242,196,76,0.07); border-color:rgba(242,196,76,0.25); color:var(--warn-yellow); }
+
+        /* Contrast */
+        .contrast-block { background:var(--bg-base); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:14px; margin-bottom:10px; }
+        .c-header { display:flex; justify-content:space-between; margin-bottom:10px; align-items:flex-start; }
+        .color-editor { display:flex; align-items:center; gap:8px; margin-top:8px; }
+        .color-editor input[type="color"] { width:24px; height:24px; border:1px solid var(--border-color); border-radius:4px; padding:0; background:none; cursor:pointer; }
+        .hex-input { background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-main); font-family:"SF Mono",monospace; font-size:12px; width:70px; padding:4px 6px; text-transform:uppercase; border-radius:4px; }
+        .range-slider { flex:1; accent-color:var(--accent-purple); height:2px; }
+        .status-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+        .status-dot.pass { background:var(--pass-green); box-shadow:0 0 4px var(--pass-green); }
+        .status-dot.fail { background:var(--fail-red); box-shadow:0 0 4px var(--fail-red); }
+        .spec-indicator { display:inline-flex; align-items:center; padding:2px 6px; border-radius:4px; font-weight:600; font-size:11px; font-family:"SF Mono",monospace; }
+        .spec-indicator.pass { background:rgba(20,174,92,0.15); color:var(--pass-green); }
+        .spec-indicator.fail { background:rgba(242,72,34,0.15); color:var(--fail-red); }
+
+        /* Extracted palette strip */
+        .palette-strip { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+        .palette-chip { width:22px; height:22px; border-radius:4px; border:1px solid rgba(255,255,255,0.1); cursor:pointer; transition:transform 0.1s; title:attr(title); }
+        .palette-chip:hover { transform:scale(1.2); }
+
+        /* On-brand swatch match */
+        .palette-match-row { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; }
+        .match-label { color:var(--text-dim); flex:1; }
+        .match-badge { padding:2px 8px; border-radius:100px; font-size:11px; font-weight:600; }
+        .match-badge.on { background:rgba(20,174,92,0.15); color:var(--pass-green); border:1px solid rgba(20,174,92,0.3); }
+        .match-badge.off { background:rgba(242,72,34,0.15); color:var(--fail-red); border:1px solid rgba(242,72,34,0.3); }
+        .match-badge.unknown { background:var(--bg-hover); color:var(--text-dim); border:1px solid var(--border-color); }
+
+        .notes-area { width:100%; background:var(--bg-base); border:1px solid var(--border-color); color:var(--text-main); padding:12px; border-radius:var(--radius-sm); font-family:var(--font-ui); font-size:14px; resize:vertical; min-height:80px; outline:none; margin-top:8px; }
+
+        /* Progress */
+        #progress-container { display:none; align-items:center; gap:12px; background:var(--bg-base); border:1px solid var(--border-color); padding:4px 16px; border-radius:100px; position:relative; overflow:hidden; }
+        #progress-bar-fill { position:absolute; left:0; top:0; bottom:0; width:0%; background:rgba(100,92,255,0.15); z-index:0; transition:width 0.3s ease; }
+        #progress-circle { width:16px; height:16px; border-radius:50%; background:conic-gradient(var(--accent-purple) 0%,rgba(255,255,255,0.1) 0%); z-index:1; transition:background 0.3s; }
+        #progress-text { font-size:13px; font-weight:500; z-index:1; }
+        #progress-timer { color:var(--text-dim); font-size:13px; font-family:'SF Mono',monospace; z-index:1; }
+
+        /* Rerun button */
+        .btn-rerun { background:transparent; border:1px solid var(--border-color); color:var(--text-dim); padding:3px 8px; border-radius:4px; font-size:11px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:0.15s; }
+        .btn-rerun:hover { border-color:var(--accent-purple); color:var(--accent-purple); }
+    </style>
+</head>
+<body>
+
+<!-- GLOBAL DROP OVERLAY -->
+<div id="global-drop-zone">
+    <div class="global-drop-content">
+        <span class="material-symbols-outlined" style="font-size:64px;color:var(--accent-purple);margin-bottom:16px;">add_photo_alternate</span>
+        <div style="font-size:24px;font-weight:600;">Drop Media to Add to Library</div>
+        <div style="color:var(--text-dim);margin-top:8px;">JPG, PNG, GIF, PDF, or ZIP</div>
+    </div>
+</div>
+
+<!-- DUPLICATE MODAL -->
+<div id="duplicate-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Duplicate Files Detected</h3>
+        <p>Some files share a name with existing assets. Enter a prefix to identify this batch (e.g., "V2", "Meta").</p>
+        <input type="text" id="duplicate-prefix-input" class="form-input" style="margin-bottom:20px;" placeholder="e.g. V2">
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="cancelDuplicateUpload()">Cancel</button>
+            <button class="btn-primary btn-sm" onclick="resolveDuplicates()">Apply Prefix</button>
+        </div>
+    </div>
+</div>
+
+<!-- RESET MODAL -->
+<div id="reset-modal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>Clear Workspace?</h3>
+        <p>All uploaded files, reports, and generated notes will be permanently lost.</p>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeResetModal()">Cancel</button>
+            <button class="btn-primary btn-danger btn-sm" onclick="location.reload()">Clear Workspace</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     BRAND MODAL
+═══════════════════════════════════════════════ -->
+<div id="brand-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="brand-modal-header">
+            <h3>Brand Profile</h3>
+            <button class="icon-btn" onclick="closeBrandModal()"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="brand-modal-body">
+            <div class="brand-tabs">
+                <button class="brand-tab active" onclick="switchBrandTab('select',this)">Select Brand</button>
+                <button class="brand-tab" onclick="switchBrandTab('admin',this)">Manage Brands</button>
+            </div>
+
+            <!-- SELECT TAB -->
+            <div class="brand-tab-content active" id="btab-select">
+                <div class="brand-list" id="brand-select-list"></div>
+            </div>
+
+            <!-- ADMIN TAB -->
+            <div class="brand-tab-content" id="btab-admin">
+                <div class="admin-gate" id="admin-gate">
+                    <p>Enter the admin passcode to manage brand profiles.</p>
+                    <div style="display:flex;gap:8px;justify-content:center;">
+                        <input type="password" id="admin-passcode-input" class="form-input" style="width:160px;" placeholder="Passcode" onkeydown="if(event.key==='Enter')checkAdminPasscode()">
+                        <button class="btn-primary btn-sm" onclick="checkAdminPasscode()">Unlock</button>
+                    </div>
+                    <div id="admin-gate-error" style="color:var(--fail-red);font-size:12px;margin-top:8px;display:none;">Incorrect passcode.</div>
+                </div>
+                <div class="admin-content" id="admin-content">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <div style="font-size:13px;font-weight:600;">Brand Profiles</div>
+                        <button class="btn-primary btn-sm" onclick="newBrandProfile()">
+                            <span class="material-symbols-outlined" style="font-size:15px;">add</span> New Brand
+                        </button>
+                    </div>
+                    <div class="brand-editor-list" id="brand-editor-list"></div>
+                    <div id="brand-form-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TOOLBAR
+═══════════════════════════════════════════════ -->
+<div class="toolbar">
+    <div class="toolbar-group">
+        <span class="material-symbols-outlined" style="color:var(--accent-purple);">diamond</span>
+        <span style="font-weight:600;font-size:15px;">Creative QA Studio</span>
+    </div>
+
+    <!-- Brand Badge (center) -->
+    <div id="brand-badge" class="brand-badge no-brand" onclick="openBrandModal()">
+        <div class="brand-badge-dot" id="brand-badge-dot"></div>
+        <span class="brand-badge-name" id="brand-badge-name">No Brand Selected</span>
+        <span class="material-symbols-outlined brand-badge-chevron">unfold_more</span>
+    </div>
+
+    <div class="toolbar-group">
+        <div id="progress-container">
+            <div id="progress-bar-fill"></div>
+            <div id="progress-circle"></div>
+            <div id="progress-text">Processing...</div>
+            <div id="progress-timer">00.0s</div>
+        </div>
+        <div id="global-actions" style="display:none;" class="toolbar-group">
+            <button class="btn-primary" id="btn-run-qa" onclick="toggleProcessing()">
+                <span class="material-symbols-outlined" id="btn-run-icon" style="font-size:18px;">play_arrow</span>
+                <span id="btn-run-qa-text">Run All Pending</span>
+            </button>
+            <div style="width:1px;height:24px;background:var(--border-color);"></div>
+            <button class="icon-btn" onclick="exportCSV()" title="Download CSV Report"><span class="material-symbols-outlined">table_view</span></button>
+            <button class="icon-btn" onclick="document.getElementById('file-upload').click()" title="Add Media"><span class="material-symbols-outlined">add_photo_alternate</span></button>
+            <button class="icon-btn" onclick="openResetModal()" title="Reset Workspace"><span class="material-symbols-outlined">restart_alt</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     UPLOAD STATE
+═══════════════════════════════════════════════ -->
+<div class="view-state active" id="upload-state">
+    <div class="drop-zone" id="initial-drop-zone" onclick="document.getElementById('file-upload').click()">
+        <span class="material-symbols-outlined" style="font-size:48px;margin-bottom:16px;color:var(--text-dim);">folder_zip</span>
+        <div style="font-weight:600;font-size:18px;margin-bottom:8px;">Upload Campaign Media</div>
+        <div style="color:var(--text-dim);font-size:14px;">Drop a ZIP or individual JPG, PNG, GIF, PDF files here.</div>
+        <input type="file" id="file-upload" accept="image/*,application/pdf,.zip" multiple>
+    </div>
+    <div class="upload-brand-notice" id="upload-brand-notice">
+        <div class="upload-brand-dot" id="upload-brand-dot"></div>
+        <span id="upload-brand-text">No brand selected — QA will run with universal rules only.</span>
+        <button onclick="openBrandModal()" style="background:transparent;border:none;color:var(--accent-purple);cursor:pointer;font-size:13px;padding:0 0 0 8px;font-weight:500;">Select Brand →</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     LIBRARY STATE
+═══════════════════════════════════════════════ -->
+<div class="view-state" id="library-state" onmousedown="clearSelection(event)" tabindex="0">
+    <div class="library-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+            <span id="workspace-title" class="workspace-title-input" contenteditable="true" onblur="if(this.innerText.trim()==='')this.innerText='Campaign Assets'" spellcheck="false">Campaign Assets</span>
+            <span style="background:var(--bg-hover);padding:2px 8px;border-radius:100px;font-size:12px;color:var(--text-dim);" id="lib-count">0</span>
+        </div>
+        <div style="width:1px;height:20px;background:var(--border-color);"></div>
+        <div class="toolbar-group" style="margin-right:auto;padding-left:4px;">
+            <div class="segmented-control">
+                <button class="seg-btn active" onclick="setLayout('grid',this)"><span class="material-symbols-outlined" style="font-size:16px;">grid_view</span></button>
+                <button class="seg-btn" onclick="setLayout('list',this)"><span class="material-symbols-outlined" style="font-size:16px;">format_list_bulleted</span></button>
+            </div>
+            <div class="segmented-control" id="ap-card-size">
+                <button class="seg-btn" style="padding:2px 10px;" onclick="setCardSize('s',this)">S</button>
+                <button class="seg-btn active" style="padding:2px 10px;" onclick="setCardSize('m',this)">M</button>
+                <button class="seg-btn" style="padding:2px 10px;" onclick="setCardSize('l',this)">L</button>
+            </div>
+        </div>
+    </div>
+    <div class="library-content" id="lib-content"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     INSPECTOR STATE
+═══════════════════════════════════════════════ -->
+<div class="view-state" id="inspector-state">
+    <div class="canvas-area" id="report-canvas">
+        <div class="canvas-toolbar">
+            <button class="icon-btn" onclick="openLibrary()" title="Back to Library (Esc)"><span class="material-symbols-outlined">grid_view</span></button>
+            <div style="width:1px;height:24px;background:var(--border-color);margin:0 4px;"></div>
+            <div style="display:flex;gap:4px;">
+                <button class="icon-btn" id="btn-prev" onclick="goPrev()"><span class="material-symbols-outlined">chevron_left</span></button>
+                <button class="icon-btn" id="btn-next" onclick="goNext()"><span class="material-symbols-outlined">chevron_right</span></button>
+            </div>
+            <span id="inspect-filename" style="margin-left:auto;font-size:13px;color:var(--text-dim);font-family:monospace;">--</span>
+        </div>
+        <div class="canvas-inner">
+            <div class="img-container" id="media-container"></div>
+            <div class="gif-scrubber-bar" id="gif-scrubber-bar" style="display:none;">
+                <div class="play-btn-wrapper"><button class="play-btn" onclick="gifPlayer.toggle()"><span class="material-symbols-outlined" id="gif-play-icon">play_arrow</span></button></div>
+                <div class="frame-btns-container" id="gif-frame-btns"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar-right">
+        <div class="sidebar-header">
+            <div class="segmented-control" style="width:100%;">
+                <button class="seg-btn active" style="flex:1;" onclick="switchSidebarTab('tab-qa',this)">QA Checker</button>
+                <button class="seg-btn" style="flex:1;" onclick="switchSidebarTab('tab-prod',this)">Production</button>
+            </div>
+        </div>
+
+        <!-- QA TAB -->
+        <div id="tab-qa" class="tab-content active">
+            <div id="brand-check-banner-wrap"></div>
+
+            <div class="inspector-section">
+                <div class="section-title">
+                    AI Vision Profile
+                    <button class="btn-rerun" id="btn-rerun-asset" onclick="rerunCurrentAsset()" style="display:none;">
+                        <span class="material-symbols-outlined" style="font-size:13px;">refresh</span> Rerun
+                    </button>
+                </div>
+                <div class="stacked-field"><div class="stacked-title">Detected Brand</div><div class="stacked-val" id="det-client" style="color:var(--accent-purple);font-weight:500;">--</div></div>
+                <div class="stacked-field"><div class="stacked-title">Typography</div><div class="stacked-val" id="det-font">--</div></div>
+                <div class="stacked-field">
+                    <div class="stacked-title">Extracted Palette (from file)</div>
+                    <div class="palette-strip" id="extracted-palette-strip"></div>
+                </div>
+                <div class="stacked-field" id="brand-palette-match-wrap" style="display:none;">
+                    <div class="stacked-title">On-Brand Color Check</div>
+                    <div id="brand-palette-match-detail"></div>
+                </div>
+                <div class="stacked-field">
+                    <div class="stacked-title">Extracted Copy</div>
+                    <div class="copy-box">
+                        <button class="btn-copy" onclick="copyExtractedText()" title="Copy"><span class="material-symbols-outlined" style="font-size:16px;">content_copy</span></button>
+                        <div class="copy-text" id="det-copy-raw">--</div>
+                    </div>
+                </div>
+                <div class="stacked-field"><div class="stacked-title">Copywriting & Grammar</div><div class="stacked-val" id="note-copy">--</div></div>
+                <div class="stacked-field"><div class="stacked-title">Voice & Tone</div><div class="stacked-val" id="note-voice">--</div></div>
+                <div class="stacked-field" style="margin-bottom:0;"><div class="stacked-title">Brand Rules</div><div class="stacked-val" id="note-brand">--</div></div>
+            </div>
+
+            <!-- CTA Analysis -->
+            <div class="inspector-section" id="cta-section" style="display:none;">
+                <div class="section-title">CTA Analysis</div>
+                <div class="prop-row"><span class="prop-label">CTA Text</span><span class="prop-val" id="cta-text">--</span></div>
+                <div class="prop-row"><span class="prop-label">Actionable?</span><span id="cta-actionable">--</span></div>
+                <div class="stacked-val" id="cta-notes" style="font-size:12px;color:var(--text-dim);margin-top:4px;"></div>
+            </div>
+
+            <div class="inspector-section">
+                <div class="section-title">
+                    Contrast Inspector
+                    <div class="segmented-control" style="background:var(--bg-base);width:auto;">
+                        <button class="seg-btn active" style="padding:2px 8px;" id="btn-aa" onclick="setStandard('AA')">AA</button>
+                        <button class="seg-btn" style="padding:2px 8px;" id="btn-aaa" onclick="setStandard('AAA')">AAA</button>
+                    </div>
+                </div>
+                <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;display:flex;gap:6px;">
+                    <span class="material-symbols-outlined" style="font-size:14px;margin-top:1px;">info</span>
+                    <div>Colors are extracted from the actual file pixels, then labeled by AI. Use the pickers to fine-tune for exact WCAG compliance.</div>
+                </div>
+                <div id="contrast-container"><div style="color:var(--text-dim);text-align:center;padding:20px;font-size:13px;">Run QA to analyze contrast.</div></div>
+            </div>
+        </div>
+
+        <!-- PRODUCTION TAB -->
+        <div id="tab-prod" class="tab-content">
+            <div class="inspector-section">
+                <div class="section-title">File Data <span id="inspect-filename-side" style="margin-left:auto;font-size:11px;color:var(--text-dim);font-weight:normal;text-transform:none;">--</span></div>
+                <div class="prop-row"><span class="prop-label">Dimensions</span><span class="prop-val" id="meta-dim">--</span></div>
+                <div class="prop-row"><span class="prop-label">Format</span><span class="prop-val" id="meta-format">--</span></div>
+            </div>
+            <div class="inspector-section">
+                <div class="section-title">Ad Network Specs
+                    <select id="network-select" style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border-color);border-radius:4px;font-size:11px;padding:2px 4px;outline:none;margin-left:auto;" onchange="recalculateSpecs()">
+                        <option value="google">Google Display</option>
+                        <option value="meta">Meta (FB/IG)</option>
+                        <option value="linkedin">LinkedIn</option>
+                    </select>
+                </div>
+                <div class="prop-row"><span class="prop-label">1px Border Rule</span><div style="display:flex;gap:8px;"><span id="spec-border-badge">--</span></div></div>
+                <div class="prop-row"><span class="prop-label" id="label-size-limit">File Size (< 150KB)</span><div style="display:flex;gap:8px;"><span class="prop-val" id="meta-size">--</span><span id="spec-size-badge"></span></div></div>
+                <div class="prop-row"><span class="prop-label">Text Density (< 20%)</span><div style="display:flex;gap:8px;"><span class="prop-val" id="spec-density">--%</span></div></div>
+            </div>
+            <div class="inspector-section" id="gif-meta-section" style="display:none;">
+                <div class="section-title" style="color:var(--accent-purple);">GIF Analysis</div>
+                <div class="prop-row"><span class="prop-label" id="label-gif-limit">Loop Duration</span><div style="display:flex;gap:8px;"><span class="prop-val" id="meta-gif-loop-dur">--</span></div></div>
+                <div class="prop-row"><span class="prop-label">Total Duration</span><span class="prop-val" id="meta-gif-total-dur" style="color:var(--accent-purple);">--</span></div>
+                <div class="prop-row"><span class="prop-label">Loop Config</span><span class="prop-val" id="meta-gif-loop">--</span></div>
+                <div class="prop-row"><span class="prop-label">Frame Count</span><span class="prop-val" id="meta-gif-frames">--</span></div>
+                <div style="font-weight:600;font-size:12px;margin-top:16px;margin-bottom:8px;color:var(--text-dim);">FRAME DURATIONS</div>
+                <div class="frame-pill-container" id="meta-gif-breakdown"></div>
+            </div>
+        </div>
+
+        <div style="padding:16px 20px;border-top:1px solid var(--border-color);margin-top:auto;flex-shrink:0;">
+            <div class="section-title">Reviewer Notes</div>
+            <textarea class="notes-area" id="user-notes-input" placeholder="Add custom notes..." oninput="saveNotes()"></textarea>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════ -->
+<script>
+// ── BRAND PROFILES ─────────────────────────────────────────────────────────
+const ADMIN_PASSCODE = 'studio24'; // Change this to your passcode
+const BRAND_STORAGE_KEY = 'cqa_brand_profiles_v1';
+const ACTIVE_BRAND_KEY  = 'cqa_active_brand_v1';
+
+function loadBrands() {
+    try {
+        return JSON.parse(localStorage.getItem(BRAND_STORAGE_KEY)) || [];
+    } catch(e) { return []; }
+}
+function saveBrands(brands) {
+    localStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(brands));
+}
+function getActiveBrand() {
+    const id = localStorage.getItem(ACTIVE_BRAND_KEY);
+    if (!id) return null;
+    return loadBrands().find(b => b.id === id) || null;
+}
+function setActiveBrand(id) {
+    if (id) localStorage.setItem(ACTIVE_BRAND_KEY, id);
+    else localStorage.removeItem(ACTIVE_BRAND_KEY);
+    updateBrandBadge();
+    updateUploadBrandNotice();
+}
+
+function updateBrandBadge() {
+    const brand = getActiveBrand();
+    const badge = document.getElementById('brand-badge');
+    const dot   = document.getElementById('brand-badge-dot');
+    const name  = document.getElementById('brand-badge-name');
+    if (brand) {
+        badge.classList.remove('no-brand');
+        dot.style.background  = brand.accentColor || '#645CFF';
+        name.textContent = brand.name;
+    } else {
+        badge.classList.add('no-brand');
+        dot.style.background  = '';
+        name.textContent = 'No Brand Selected';
+    }
+}
+
+function updateUploadBrandNotice() {
+    const brand = getActiveBrand();
+    const notice = document.getElementById('upload-brand-notice');
+    const dot    = document.getElementById('upload-brand-dot');
+    const text   = document.getElementById('upload-brand-text');
+    if (brand) {
+        notice.classList.add('has-brand');
+        dot.style.background = brand.accentColor || 'var(--accent-purple)';
+        text.textContent = `Brand: ${brand.name} — full brand rules will be applied.`;
+    } else {
+        notice.classList.remove('has-brand');
+        dot.style.background = '';
+        text.textContent = 'No brand selected — QA will run with universal rules only.';
+    }
+}
+
+// ── BRAND MODAL ─────────────────────────────────────────────────────────────
+let adminUnlocked = false;
+let editingBrandId = null;
+
+function openBrandModal() {
+    renderBrandSelectList();
+    if (adminUnlocked) renderAdminContent();
+    document.getElementById('brand-modal').classList.add('active');
+}
+function closeBrandModal() {
+    document.getElementById('brand-modal').classList.remove('active');
+}
+
+function switchBrandTab(tab, btn) {
+    btn.parentElement.querySelectorAll('.brand-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.brand-tab-content').forEach(el => el.classList.remove('active'));
+    document.getElementById('btab-' + tab).classList.add('active');
+    if (tab === 'admin' && adminUnlocked) renderAdminContent();
+}
+
+function renderBrandSelectList() {
+    const brands = loadBrands();
+    const active = getActiveBrand();
+    const container = document.getElementById('brand-select-list');
+    let html = `<div class="no-brand-option ${!active ? 'active-brand' : ''}" onclick="selectBrand(null)">
+        <span class="material-symbols-outlined" style="font-size:20px;opacity:0.5;">block</span>
+        <div><div style="font-size:14px;font-weight:500;">No Brand / One-Off</div><div style="font-size:12px;margin-top:2px;">Universal rules only (grammar, contrast, fonts)</div></div>
+    </div>`;
+    brands.forEach(b => {
+        const isActive = active && active.id === b.id;
+        const swatchColors = (b.palette || []).slice(0,5).map(c => `<div style="width:12px;height:12px;border-radius:3px;background:${c};border:1px solid rgba(255,255,255,0.1);"></div>`).join('');
+        html += `<div class="brand-list-item ${isActive ? 'active-brand' : ''}" onclick="selectBrand('${b.id}')">
+            <div class="brand-swatch" style="background:${b.accentColor || '#645CFF'};"></div>
+            <div style="flex:1;">
+                <div class="brand-list-name">${b.name}</div>
+                <div class="brand-list-meta" style="display:flex;gap:4px;align-items:center;margin-top:4px;">${swatchColors}</div>
+            </div>
+            <span class="material-symbols-outlined brand-list-check">check_circle</span>
+        </div>`;
+    });
+    if (brands.length === 0) html += `<div style="text-align:center;padding:32px;color:var(--text-dim);font-size:13px;">No brand profiles yet.<br>Go to <b>Manage Brands</b> to add one.</div>`;
+    container.innerHTML = html;
+}
+
+function selectBrand(id) {
+    setActiveBrand(id);
+    renderBrandSelectList();
+    closeBrandModal();
+}
+
+function checkAdminPasscode() {
+    const input = document.getElementById('admin-passcode-input').value;
+    if (input === ADMIN_PASSCODE) {
+        adminUnlocked = true;
+        document.getElementById('admin-gate').style.display = 'none';
+        document.getElementById('admin-content').classList.add('unlocked');
+        renderAdminContent();
+    } else {
+        document.getElementById('admin-gate-error').style.display = 'block';
+    }
+}
+
+function renderAdminContent() {
+    const brands = loadBrands();
+    const list = document.getElementById('brand-editor-list');
+    if (brands.length === 0) {
+        list.innerHTML = `<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">No brands yet. Click "+ New Brand" to create one.</div>`;
+    } else {
+        list.innerHTML = brands.map(b => `
+            <div class="brand-editor-item ${editingBrandId === b.id ? 'editing' : ''}" onclick="editBrandProfile('${b.id}')">
+                <div class="brand-editor-swatch" style="background:${b.accentColor||'#645CFF'};"></div>
+                <div class="brand-editor-name">${b.name}</div>
+                <button onclick="event.stopPropagation();deleteBrandProfile('${b.id}')" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;padding:2px;border-radius:4px;" title="Delete">
+                    <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                </button>
+            </div>`).join('');
+    }
+}
+
+function newBrandProfile() {
+    editingBrandId = 'new_' + Date.now();
+    renderAdminContent();
+    renderBrandForm(null);
+}
+
+function editBrandProfile(id) {
+    editingBrandId = id;
+    const brand = loadBrands().find(b => b.id === id);
+    renderAdminContent();
+    renderBrandForm(brand);
+}
+
+function deleteBrandProfile(id) {
+    if (!confirm('Delete this brand profile?')) return;
+    let brands = loadBrands().filter(b => b.id !== id);
+    saveBrands(brands);
+    if (getActiveBrand()?.id === id) setActiveBrand(null);
+    editingBrandId = null;
+    renderAdminContent();
+    document.getElementById('brand-form-container').innerHTML = '';
+}
+
+function renderBrandForm(brand) {
+    const paletteColors = brand?.palette || ['#000000', '#FFFFFF'];
+    const paletteHtml = paletteColors.map((c,i) => `
+        <div class="palette-swatch-wrap" data-idx="${i}">
+            <input type="color" class="palette-swatch-input" value="${c}" onchange="updatePaletteSwatch(this)">
+            <button class="palette-swatch-remove" onclick="removePaletteSwatch(this)">×</button>
+        </div>`).join('');
+
+    document.getElementById('brand-form-container').innerHTML = `
+        <div class="brand-form">
+            <div class="form-row">
+                <label class="form-label">Brand Name *</label>
+                <input type="text" id="bf-name" class="form-input" placeholder="e.g. Acme Corp" value="${brand?.name || ''}">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Accent Color (badge)</label>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <input type="color" id="bf-accent" value="${brand?.accentColor || '#645CFF'}" style="width:36px;height:36px;border:1px solid var(--border-color);border-radius:6px;padding:2px;cursor:pointer;background:none;">
+                    <span style="font-size:12px;color:var(--text-dim);">Used for the toolbar badge</span>
+                </div>
+            </div>
+            <div class="form-row">
+                <label class="form-label">Approved Color Palette</label>
+                <div class="palette-editor" id="bf-palette-editor">
+                    ${paletteHtml}
+                    <button class="btn-add-swatch" onclick="addPaletteSwatch()">+</button>
+                </div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">These exact hex values will be sent to AI for on-brand color verification.</div>
+            </div>
+            <div class="form-row">
+                <label class="form-label">Primary Font</label>
+                <input type="text" id="bf-font-primary" class="form-input" placeholder="e.g. Helvetica Neue" value="${brand?.fontPrimary || ''}">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Secondary Font (optional)</label>
+                <input type="text" id="bf-font-secondary" class="form-input" placeholder="e.g. Georgia" value="${brand?.fontSecondary || ''}">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Voice & Tone Keywords</label>
+                <input type="text" id="bf-voice" class="form-input" placeholder="e.g. professional, confident, not casual" value="${brand?.voiceTone || ''}">
+            </div>
+            <div class="form-row" style="margin-bottom:0;">
+                <label class="form-label">Custom Brand Rules</label>
+                <textarea id="bf-rules" class="form-input" placeholder="e.g. Logo must always appear on white or brand blue background. Never use red except for error states. CTAs must use imperative verbs.">${brand?.customRules || ''}</textarea>
+            </div>
+            <div class="form-actions">
+                <button class="btn-secondary btn-sm" onclick="cancelBrandEdit()">Cancel</button>
+                <button class="btn-primary btn-sm" onclick="saveBrandProfile('${brand?.id || ''}')">
+                    <span class="material-symbols-outlined" style="font-size:15px;">save</span> Save Profile
+                </button>
+            </div>
+        </div>`;
+}
+
+function getPaletteFromForm() {
+    return Array.from(document.querySelectorAll('#bf-palette-editor .palette-swatch-input')).map(i => i.value.toUpperCase());
+}
+function updatePaletteSwatch() {}
+function addPaletteSwatch() {
+    const editor = document.getElementById('bf-palette-editor');
+    const btn = editor.querySelector('.btn-add-swatch');
+    const wrap = document.createElement('div'); wrap.className = 'palette-swatch-wrap';
+    wrap.innerHTML = `<input type="color" class="palette-swatch-input" value="#000000"><button class="palette-swatch-remove" onclick="removePaletteSwatch(this)">×</button>`;
+    editor.insertBefore(wrap, btn);
+}
+function removePaletteSwatch(btn) {
+    btn.closest('.palette-swatch-wrap').remove();
+}
+
+function saveBrandProfile(existingId) {
+    const name = document.getElementById('bf-name').value.trim();
+    if (!name) { alert('Brand name is required.'); return; }
+    const brands = loadBrands();
+    const profile = {
+        id: existingId || ('brand_' + Date.now()),
+        name,
+        accentColor: document.getElementById('bf-accent').value,
+        palette: getPaletteFromForm(),
+        fontPrimary: document.getElementById('bf-font-primary').value.trim(),
+        fontSecondary: document.getElementById('bf-font-secondary').value.trim(),
+        voiceTone: document.getElementById('bf-voice').value.trim(),
+        customRules: document.getElementById('bf-rules').value.trim(),
+    };
+    const idx = brands.findIndex(b => b.id === profile.id);
+    if (idx >= 0) brands[idx] = profile; else brands.push(profile);
+    saveBrands(brands);
+    editingBrandId = null;
+    renderAdminContent();
+    document.getElementById('brand-form-container').innerHTML = '';
+    renderBrandSelectList();
+}
+
+function cancelBrandEdit() {
+    editingBrandId = null;
+    renderAdminContent();
+    document.getElementById('brand-form-container').innerHTML = '';
+}
+
+// ── COLOR EXTRACTION (CLIENT-SIDE) ─────────────────────────────────────────
+async function extractDominantColors(file, count = 10) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            const SIZE = 120; // downsample for speed
+            const canvas = document.createElement('canvas');
+            canvas.width = SIZE; canvas.height = SIZE;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, SIZE, SIZE);
+            const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
+            // Quantize to buckets of 32
+            const buckets = {};
+            for (let i = 0; i < data.length; i += 4) {
+                const a = data[i+3];
+                if (a < 128) continue; // skip transparent
+                const r = Math.round(data[i]   / 32) * 32;
+                const g = Math.round(data[i+1] / 32) * 32;
+                const b = Math.round(data[i+2] / 32) * 32;
+                const key = `${r},${g},${b}`;
+                buckets[key] = (buckets[key] || 0) + 1;
+            }
+            const sorted = Object.entries(buckets).sort((a,b) => b[1]-a[1]).slice(0, count);
+            const hexes = sorted.map(([key]) => {
+                const [r,g,b] = key.split(',').map(Number);
+                return '#' + [r,g,b].map(v => Math.min(255,v).toString(16).padStart(2,'0')).join('').toUpperCase();
+            });
+            URL.revokeObjectURL(img.src);
+            resolve(hexes);
+        };
+        img.onerror = () => resolve([]);
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// Color distance (euclidean in RGB) — used for on-brand palette matching
+function colorDistance(hex1, hex2) {
+    const c1 = hexToRgb(hex1), c2 = hexToRgb(hex2);
+    if (!c1 || !c2) return 999;
+    return Math.sqrt(Math.pow(c1.r-c2.r,2) + Math.pow(c1.g-c2.g,2) + Math.pow(c1.b-c2.b,2));
+}
+const COLOR_TOLERANCE = 40; // max distance to count as "on brand"
+
+function checkPaletteOnBrand(extractedColors, brandPalette) {
+    if (!brandPalette || brandPalette.length === 0) return null;
+    // Filter out near-white and near-black (they're universal)
+    const meaningful = extractedColors.filter(c => {
+        const rgb = hexToRgb(c);
+        if (!rgb) return false;
+        const brightness = (rgb.r + rgb.g + rgb.b) / 3;
+        return brightness > 20 && brightness < 235;
+    });
+    if (meaningful.length === 0) return { status: 'unknown', detail: 'No meaningful colors to check.' };
+    const offBrand = meaningful.filter(c => !brandPalette.some(bp => colorDistance(c, bp) < COLOR_TOLERANCE));
+    if (offBrand.length === 0) return { status: 'on', detail: 'All detected colors match the approved palette.', offBrand: [] };
+    if (offBrand.length <= 1) return { status: 'partial', detail: `${offBrand.length} color(s) not found in approved palette.`, offBrand };
+    return { status: 'off', detail: `${offBrand.length} colors not found in approved palette.`, offBrand };
+}
+
+// ── BUILD GEMINI PROMPT ─────────────────────────────────────────────────────
+function buildGeminiPrompt(extractedColors) {
+    const brand = getActiveBrand();
+    const colorList = extractedColors.length > 0 ? extractedColors.join(', ') : 'Not available';
+
+    let brandSection = '';
+    if (brand) {
+        const palette = (brand.palette || []).join(', ') || 'Not specified';
+        const fonts   = [brand.fontPrimary, brand.fontSecondary].filter(Boolean).join(' and ') || 'Not specified';
+        brandSection = `
+ACTIVE BRAND PROFILE — "${brand.name}":
+- Approved color palette: ${palette}
+- Approved fonts: ${fonts}
+- Voice & tone: ${brand.voiceTone || 'Not specified'}
+- Brand rules: ${brand.customRules || 'None provided'}
+
+BRAND VERIFICATION INSTRUCTIONS:
+For the "branding" field, check SPECIFICALLY against the above brand profile:
+1. FLAG any font that clearly differs from the approved fonts (${fonts}).
+2. The approved color palette is: ${palette}. The programmatic scan found these dominant colors in the file: ${colorList}. Note any colors present in the file that are NOT in the approved palette (use a tolerance of ~15% color distance for compression artifacts).
+3. Evaluate whether the copy tone matches: "${brand.voiceTone || 'professional'}". Flag casual, off-tone, or inconsistent language.
+4. Check all custom brand rules listed above. Flag any violations.
+5. If this appears to be a one-off creative with intentionally different colors, note that but still flag it.
+Set branding.status to "Pass" only if ALL of the above checks pass. Otherwise set "Fail" and list each violation clearly.`;
+    } else {
+        brandSection = `
+NO BRAND PROFILE SELECTED — apply universal advertising standards only:
+- Flag any obvious font inconsistency (mixing more than 2 typefaces)
+- Flag any colors that appear unintentional or create poor contrast
+- Evaluate tone as professional advertising standards (clear, active voice, no typos)
+- Set branding.status to "Unverified" and note that no brand profile was provided.`;
+    }
+
+    return `You are a meticulous QA Analyst and Accessibility Expert for a high-end advertising agency.
+Review the attached artwork. A programmatic pixel scan of this file has already identified the following dominant colors: ${colorList}.
+
+${brandSection}
+
+CRITICAL RULE: If the attached file is a tall "filmstrip" image, it is a chronological sequence of frames extracted from an animated GIF stacked vertically top to bottom. Analyze the ENTIRE filmstrip in order. Treat each distinct vertical segment as a numbered frame.
+
+Follow these instructions in order:
+
+1. CHAIN OF THOUGHT — "qaReasoning" field
+Write a brief paragraph: Is this a static image or filmstrip? What text appears chronologically? Where are you sampling colors from? What brand rules are you checking?
+
+2. COPY EXTRACTION
+Extract ALL visible functional text verbatim, grouped chronologically by frame.
+NAMING: Use "Frame 1", "Frame 2", "CTA", "Button", "Link" — NOT layout descriptions.
+Do NOT transcribe brand wordmarks or logos.
+
+3. COLOR EXTRACTION & CONTRAST
+Use the programmatically-extracted dominant colors provided above as your primary color reference. Your job is to IDENTIFY WHICH ELEMENT each color belongs to (headline text, body text, background, button fill, etc.) — not to guess hex values.
+For each text-background pair, confirm or slightly refine the hex based on visual inspection, but stay close to the provided values.
+Identify up to 6 distinct text-to-background combinations.
+Determine WCAG pass/fail for Regular Text (<18pt), Large Text (>=18pt), and Graphics.
+
+4. COMPLIANCE
+Strict spelling, grammar, and localization review in the native language of the ad.
+Evaluate voice and tone against the brand profile above.
+
+5. CTA ANALYSIS
+Identify the primary CTA. Is it actionable (imperative verb)? Is it clear? Note any concerns.
+
+6. OUTPUT — RESPOND ONLY WITH THIS EXACT JSON, NO MARKDOWN, NO OTHER TEXT:
+{
+  "qaReasoning": "Your step-by-step analysis.",
+  "detectedBrand": "Name of Client or Unknown",
+  "textDensityPercentage": "XX%",
+  "extractedCopy": [
+    { "frameOrSection": "Frame 1", "text": "Visible text here" }
+  ],
+  "fontAnalysis": { "bestGuess": "Font name or description" },
+  "contrastAnalyses": [
+    {
+      "sectionName": "Brief description (e.g. Blue CTA Button)",
+      "textColorHex": "#XXXXXX",
+      "backgroundColorHex": "#XXXXXX",
+      "regularTextStatus": "AAA",
+      "largeTextStatus": "AA",
+      "graphicsStatus": "Fail"
+    }
+  ],
+  "grammar": { "status": "Pass/Fail", "notes": "List issues or state No issues found." },
+  "voiceTone": { "status": "Pass/Fail/Unverified", "notes": "Tone evaluation notes." },
+  "branding": { "status": "Pass/Fail/Unverified", "notes": "List each violation or state Compliant." },
+  "ctaAnalysis": { "ctaText": "CTA text here", "isActionable": true, "notes": "Notes here." }
+}`;
+}
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let fileQueue = [];
+let campaignData = {};
+let selectedIndices = new Set();
+let lastSelectedIndex = null;
+let isProcessing = false; let shouldCancel = false; let abortController = null;
+let activeStandard = 'AA'; let activeFileIndex = null;
+let currentLayout = 'grid'; let currentCardSize = 'm';
+let sortConfig = { key: 'none', asc: true };
+let processingStartTime = 0; let processingTimer = null;
+let duplicateResolve = null;
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+updateBrandBadge();
+updateUploadBrandNotice();
+
+// ── UTILITIES ──────────────────────────────────────────────────────────────
+function sanitizeImage(file) {
+    return new Promise((resolve) => {
+        const img = new Image(); img.src = URL.createObjectURL(file);
+        img.onload = () => {
+            const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d'); ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0);
+            canvas.toBlob((blob) => resolve(new File([blob], 's.jpg', {type:'image/jpeg'})), 'image/jpeg', 0.9);
+        };
+    });
+}
+function hexToRgb(h) { let r=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h); return r?{r:parseInt(r[1],16),g:parseInt(r[2],16),b:parseInt(r[3],16)}:null; }
+function lum(r,g,b) { let a=[r,g,b].map(v=>{v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);}); return a[0]*0.2126+a[1]*0.7152+a[2]*0.0722; }
+function calcRatio(h1,h2) { let c1=hexToRgb(h1),c2=hexToRgb(h2); if(!c1||!c2)return 1; let l1=lum(c1.r,c1.g,c1.b),l2=lum(c2.r,c2.g,c2.b); return (Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05); }
+function adjLight(h,p) { let c=hexToRgb(h); if(!c)return h; let b=p>0?255:0,i=Math.abs(p)/100; return "#"+((1<<24)+(Math.round(c.r+(b-c.r)*i)<<16)+(Math.round(c.g+(b-c.g)*i)<<8)+Math.round(c.b+(b-c.b)*i)).toString(16).slice(1).toUpperCase(); }
+function extractValidHex(str,def) {
+    if(!str)return def; str=String(str).toLowerCase();
+    const rgb=str.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+    if(rgb)return `#${parseInt(rgb[1]).toString(16).padStart(2,'0')}${parseInt(rgb[2]).toString(16).padStart(2,'0')}${parseInt(rgb[3]).toString(16).padStart(2,'0')}`.toUpperCase();
+    if(str.includes('white'))return '#FFFFFF'; if(str.includes('black'))return '#000000';
+    const hex=str.match(/#([0-9A-Fa-f]{3,6})\b/);
+    if(hex){let h=hex[1];if(h.length===3)h=h.split('').map(x=>x+x).join('');if(h.length===6)return '#'+h.toUpperCase();}
+    return def;
+}
+function getColorsFromAI(item) {
+    let f={}; for(let k in item)f[k.toLowerCase()]=item[k];
+    let txt=f.textcolorhex||f.textcolor||f.text_color||f.texthex||f.text||f.color||f.foregroundcolor;
+    let bg=f.backgroundcolorhex||f.backgroundcolor||f.background_color||f.bghex||f.background||f.bg;
+    if(!txt||!bg){let hexes=JSON.stringify(item).match(/#[0-9A-Fa-f]{3,6}/gi)||[];if(!txt&&hexes.length>0)txt=hexes[0];if(!bg&&hexes.length>1)bg=hexes[1];}
+    txt=extractValidHex(txt,'#000000'); bg=extractValidHex(bg,'#FFFFFF');
+    if(txt===bg)txt=(bg==='#FFFFFF'||bg==='#FFFFFFFF')?'#000000':'#FFFFFF';
+    return{txt,bg};
+}
+function isPass(r,lrg,std=activeStandard){return std==='AAA'?(lrg?r>=4.5:r>=7.0):(lrg?r>=3.0:r>=4.5);}
+
+function calculateFailCount(aiData,std) {
+    let fails=0; if(!aiData||aiData.error)return -1;
+    if(aiData.contrastAnalyses){aiData.contrastAnalyses.forEach(c=>{let colors=getColorsFromAI(c);let r=calcRatio(colors.txt,colors.bg);if(!isPass(r,false,std)||!isPass(r,true,std))fails++;});}
+    if((aiData.grammar?.status||'').toLowerCase().includes('fail'))fails++;
+    if((aiData.branding?.status||'').toLowerCase().includes('fail'))fails++;
+    return fails;
+}
+
+function getFailReasons(d,std,network) {
+    let reasons=[];
+    if(d.ai&&!d.ai.error&&d.ai.contrastAnalyses){let cFails=0;d.ai.contrastAnalyses.forEach(c=>{let cols=getColorsFromAI(c);if(!isPass(calcRatio(cols.txt,cols.bg),false,std)||!isPass(calcRatio(cols.txt,cols.bg),true,std))cFails++;});if(cFails>0)reasons.push('Contrast');}
+    if((d.ai?.grammar?.status||'').toLowerCase().includes('fail'))reasons.push('Spelling/Grammar');
+    if((d.ai?.branding?.status||'').toLowerCase().includes('fail'))reasons.push('Branding Rules');
+    let sizeLimit=network==='google'?150000:(network==='meta'?30000000:5000000);
+    if(d.meta.rawSize>sizeLimit)reasons.push('File Size');
+    if(network==='google'&&!d.meta.isGif&&d.meta.format!=='PDF'&&d.meta.missingBorder)reasons.push('Missing 1px Border');
+    if(d.meta.isGif&&network==='google'&&d.meta.gifData){let tP=d.meta.gifData.loopCount===0?'Inf':(d.meta.gifData.loopCount+1);let tS=tP==='Inf'?999:((d.meta.gifData.totalMs/1000)*tP);if(tS>30)reasons.push('GIF Duration');}
+    return reasons;
+}
+
+function checkMissingBorder(img,width,height) {
+    const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);
+    const pts=[ctx.getImageData(0,0,1,1).data,ctx.getImageData(width-1,0,1,1).data,ctx.getImageData(0,height-1,1,1).data,ctx.getImageData(width-1,height-1,1,1).data];
+    return pts.every(p=>p[0]>250&&p[1]>250&&p[2]>250&&p[3]>250);
+}
+
+// ── MODALS ─────────────────────────────────────────────────────────────────
+function openResetModal(){document.getElementById('reset-modal').classList.add('active');}
+function closeResetModal(){document.getElementById('reset-modal').classList.remove('active');}
+function promptDuplicatePrefix(){document.getElementById('duplicate-modal').classList.add('active');document.getElementById('duplicate-prefix-input').value='';document.getElementById('duplicate-prefix-input').focus();return new Promise((resolve)=>{duplicateResolve=resolve;});}
+function resolveDuplicates(){document.getElementById('duplicate-modal').classList.remove('active');let prefix=document.getElementById('duplicate-prefix-input').value;if(duplicateResolve)duplicateResolve(prefix);}
+function cancelDuplicateUpload(){document.getElementById('duplicate-modal').classList.remove('active');if(duplicateResolve)duplicateResolve(null);}
+
+// ── DRAG & DROP ─────────────────────────────────────────────────────────────
+const globalDropZone=document.getElementById('global-drop-zone');
+let dragCounter=0;
+window.addEventListener('dragenter',e=>{e.preventDefault();dragCounter++;if(document.getElementById('upload-state').classList.contains('active'))return;globalDropZone.classList.add('active');});
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('dragleave',e=>{dragCounter--;if(dragCounter===0)globalDropZone.classList.remove('active');});
+window.addEventListener('drop',e=>{e.preventDefault();dragCounter=0;globalDropZone.classList.remove('active');handleFiles(e.dataTransfer.files);});
+const initDropZone=document.getElementById('initial-drop-zone');
+const fileInput=document.getElementById('file-upload');
+['dragenter','dragover','dragleave','drop'].forEach(e=>initDropZone.addEventListener(e,ev=>{ev.preventDefault();ev.stopPropagation();}));
+initDropZone.addEventListener('drop',(e)=>handleFiles(e.dataTransfer.files));
+fileInput.addEventListener('change',function(){handleFiles(this.files);});
+
+// ── GIF PLAYER ─────────────────────────────────────────────────────────────
+const gifPlayer={
+    timer:null,isPlaying:false,frames:[],currentIndex:0,canvasCtx:null,
+    load:function(fData,w,h){this.stop();this.frames=fData;this.currentIndex=0;const canvas=document.getElementById('gif-canvas');if(canvas){canvas.width=w;canvas.height=h;this.canvasCtx=canvas.getContext('2d',{willReadFrequently:true});}this.updateUI();},
+    play:function(){if(this.frames.length<=1)return;if(this.currentIndex>=this.frames.length-1)this.currentIndex=0;this.isPlaying=true;document.getElementById('gif-play-icon').innerText='pause';this.updateUI();this.nextFrame();},
+    pause:function(){this.isPlaying=false;clearTimeout(this.timer);document.getElementById('gif-play-icon').innerText='play_arrow';},
+    stop:function(){this.pause();this.currentIndex=0;this.frames=[];this.canvasCtx=null;},
+    toggle:function(){if(this.isPlaying)this.pause();else this.play();},
+    scrub:function(idx){this.pause();this.currentIndex=parseInt(idx);this.updateUI();},
+    nextFrame:function(){if(!this.isPlaying)return;let delay=this.frames[this.currentIndex].delay||100;this.timer=setTimeout(()=>{this.currentIndex++;if(this.currentIndex>=this.frames.length)this.currentIndex=0;this.updateUI();this.nextFrame();},delay);},
+    updateUI:function(){if(!this.frames.length||!this.canvasCtx)return;const frame=this.frames[this.currentIndex];this.canvasCtx.clearRect(0,0,this.canvasCtx.canvas.width,this.canvasCtx.canvas.height);this.canvasCtx.drawImage(frame.bitmap,0,0);document.querySelectorAll('.frame-btn,.frame-pill').forEach((el,i)=>{if(i===this.currentIndex){el.classList.add('active');if(this.isPlaying)el.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}else el.classList.remove('active');});}
+};
+
+// ── FILE HANDLING ───────────────────────────────────────────────────────────
+async function handleFiles(files) {
+    if(!files||files.length===0)return;
+    let pendingFiles=[];
+    for(let i=0;i<files.length;i++){
+        let file=files[i];
+        if(file.name.toLowerCase().endsWith('.zip')){
+            const zipName=file.name.replace(/\.zip$/i,'');const zip=await JSZip.loadAsync(file);
+            for(let[fn,zEntry]of Object.entries(zip.files)){
+                if(!zEntry.dir&&fn.match(/\.(jpg|jpeg|png|gif|webp)$/i)&&!fn.includes('__MACOSX')){
+                    let cleanName=fn.split('/').pop();let newName=`${zipName}-${cleanName}`;
+                    pendingFiles.push(new File([await zEntry.async('blob')],newName,{type:`image/${fn.split('.').pop()}`}));
+                }
+            }
+        } else pendingFiles.push(file);
+    }
+    let hasDuplicates=pendingFiles.some(pf=>fileQueue.some(eq=>eq.name===pf.name));
+    if(hasDuplicates){
+        let prefix=await promptDuplicatePrefix();
+        if(prefix===null){if(fileQueue.length===0)document.getElementById('upload-state').classList.add('active');return;}
+        if(prefix.trim()!==''){let cleanPrefix=prefix.trim()+(prefix.endsWith('-')||prefix.endsWith('_')?'':'-');pendingFiles=pendingFiles.map(pf=>new File([pf],`${cleanPrefix}${pf.name}`,{type:pf.type}));}
+    }
+    let startingIndex=fileQueue.length;let addedIndices=[];
+    pendingFiles.forEach(pf=>{fileQueue.push(pf);addedIndices.push(fileQueue.length-1);});
+    for(let i=startingIndex;i<fileQueue.length;i++)campaignData[i]={meta:await extractLocalData(fileQueue[i]),ai:null,status:'pending',userNotes:'',extractedColors:[]};
+
+    // Extract dominant colors for each new file
+    for(let i=startingIndex;i<fileQueue.length;i++){
+        if(!campaignData[i].meta.isGif && campaignData[i].meta.format!=='PDF'){
+            campaignData[i].extractedColors = await extractDominantColors(fileQueue[i]);
+        }
+    }
+
+    document.getElementById('upload-state').classList.remove('active');document.getElementById('global-actions').style.display='flex';
+    selectedIndices.clear();addedIndices.forEach(idx=>selectedIndices.add(idx));
+    if(addedIndices.length>0)lastSelectedIndex=addedIndices[addedIndices.length-1];
+    openLibrary();updateQAButtonText();
+    if(addedIndices.length>0)setTimeout(()=>{document.getElementById(`lib-item-${addedIndices[0]}`)?.scrollIntoView({behavior:'smooth',block:'center'});},100);
+}
+
+async function extractLocalData(file) {
+    let meta={sizeKB:(file.size/1024).toFixed(1),format:file.name.split('.').pop().toUpperCase(),width:0,height:0,rawSize:file.size,isGif:file.type==='image/gif',gifData:null,missingBorder:false};
+    if(file.type.startsWith('image/')){
+        const img=new Image();img.src=URL.createObjectURL(file);
+        await new Promise(r=>{img.onload=r;img.onerror=r;});
+        meta.width=img.width||0;meta.height=img.height||0;
+        if(!meta.isGif)meta.missingBorder=checkMissingBorder(img,meta.width,meta.height);
+    }
+    if(meta.isGif){
+        try{
+            const buffer=await file.arrayBuffer();
+            if(window.parseGIF&&window.decompressFrames){
+                const parsedGif=window.parseGIF(buffer);const frames=window.decompressFrames(parsedGif,true);
+                let framesData=[];let totalMs=0;
+                const tempCanvas=document.createElement('canvas');tempCanvas.width=parsedGif.lsd.width;tempCanvas.height=parsedGif.lsd.height;
+                const ctx=tempCanvas.getContext('2d',{willReadFrequently:true});
+                for(let i=0;i<frames.length;i++){
+                    const frame=frames[i];let delay=frame.delay||100;totalMs+=delay;
+                    const fCanvas=document.createElement('canvas');fCanvas.width=frame.dims.width;fCanvas.height=frame.dims.height;
+                    const fCtx=fCanvas.getContext('2d',{willReadFrequently:true});
+                    const iData=fCtx.createImageData(frame.dims.width,frame.dims.height);iData.data.set(frame.patch);fCtx.putImageData(iData,0,0);
+                    ctx.drawImage(fCanvas,frame.dims.left,frame.dims.top);
+                    let bitmap;if(window.createImageBitmap)bitmap=await createImageBitmap(tempCanvas);else{let img=new Image();img.src=tempCanvas.toDataURL();await new Promise(r=>img.onload=r);bitmap=img;}
+                    framesData.push({bitmap,delay});
+                }
+                meta.gifData={framesData,width:parsedGif.lsd.width,height:parsedGif.lsd.height,totalMs,frameCount:frames.length,loopCount:parsedGif.lsd.loopCount!==undefined?parsedGif.lsd.loopCount:1};
+            }
+        }catch(e){console.error('GIF parse error',e);}
+    }
+    return meta;
+}
+
+// ── CSV EXPORT ──────────────────────────────────────────────────────────────
+function exportCSV() {
+    if(fileQueue.length===0)return;
+    const network=document.getElementById('network-select').value;
+    let campaignName=document.getElementById('workspace-title').innerText.replace(/"/g,'""')||'Campaign Assets';
+    let csvContent='data:text/csv;charset=utf-8,Campaign Group,Brand Profile,Filename,Format,Size (KB),Dimensions,Status,Fail Reasons,GIF Duration (s),Spelling/Grammar,Voice/Tone,Extracted Copy,Reviewer Notes\n';
+    for(let i=0;i<fileQueue.length;i++){
+        let f=fileQueue[i];let d=campaignData[i];
+        let failReasonsArr=getFailReasons(d,activeStandard,network);
+        let failsStr=failReasonsArr.length>0?`"${failReasonsArr.join(', ')}"`:'"None"';
+        let statStr=d.status;if(d.status==='fail'&&failReasonsArr.length>0)statStr=`Fail (${failReasonsArr.length})`;
+        let gifDur='--';if(d.meta.isGif&&d.meta.gifData){let tP=d.meta.gifData.loopCount===0?'Inf':(d.meta.gifData.loopCount+1);gifDur=tP==='Inf'?'Infinite':((d.meta.gifData.totalMs/1000)*tP).toFixed(2);}
+        let notes=d.userNotes?`"${d.userNotes.replace(/"/g,'""')}"`:'"" ';
+        let eCopyRaw='';if(d.ai&&d.ai.extractedCopy){if(Array.isArray(d.ai.extractedCopy))eCopyRaw=d.ai.extractedCopy.map(c=>`${c.frameOrSection}: ${c.text}`).join(' | ');else eCopyRaw=String(d.ai.extractedCopy);}
+        let eCopy=eCopyRaw?`"${eCopyRaw.replace(/"/g,'""')}"`:'"" ';
+        let spelling=(d.ai&&d.ai.grammar&&d.ai.grammar.notes)?`"${d.ai.grammar.notes.replace(/"/g,'""')}"`:'"" ';
+        let voice=(d.ai&&d.ai.voiceTone&&d.ai.voiceTone.notes)?`"${d.ai.voiceTone.notes.replace(/"/g,'""')}"`:'"" ';
+        let brandName=getActiveBrand()?.name||'None';
+        csvContent+=`"${campaignName}","${brandName}",${f.name},${d.meta.format},${d.meta.sizeKB},${d.meta.format==='PDF'?'--':d.meta.width+'x'+d.meta.height},${statStr},${failsStr},${gifDur},${spelling},${voice},${eCopy},${notes}\n`;
+    }
+    const link=document.createElement('a');link.setAttribute('href',encodeURI(csvContent));
+    let safeTitle=(document.getElementById('workspace-title').innerText||'Campaign').replace(/[^a-z0-9]/gi,'_');
+    link.setAttribute('download',`${safeTitle}_QA_Report.csv`);document.body.appendChild(link);link.click();link.remove();
+}
+
+function copyExtractedText(){
+    const rawText=document.getElementById('det-copy-raw').innerText;
+    if(rawText!=='--'){navigator.clipboard.writeText(rawText);const btn=document.querySelector('.btn-copy');btn.innerHTML='<span class="material-symbols-outlined" style="font-size:16px;color:var(--pass-green);">check</span>';setTimeout(()=>{btn.innerHTML='<span class="material-symbols-outlined" style="font-size:16px;">content_copy</span>';},2000);}
+}
+
+// ── LAYOUT & SELECTION ──────────────────────────────────────────────────────
+function recalculateSpecs(){if(activeFileIndex!==null)openInspector(activeFileIndex);}
+function switchViewState(stateId){document.querySelectorAll('.view-state').forEach(el=>el.classList.remove('active'));document.getElementById(stateId).classList.add('active');updateQAButtonText();}
+function switchSidebarTab(tabId,btn){btn.parentElement.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.sidebar-right .tab-content').forEach(el=>el.classList.remove('active'));document.getElementById(tabId).classList.add('active');}
+function openLibrary(){gifPlayer.stop();switchViewState('library-state');document.getElementById('lib-count').innerText=`${fileQueue.length}`;renderLibrary();}
+function clearSelection(e){if(e.target.id==='lib-content'||e.target.classList.contains('lib-grid')){if(selectedIndices.size>0){selectedIndices.clear();lastSelectedIndex=null;updateSelectionUI();updateQAButtonText();}}}
+function handleSelect(e,idx){
+    e.stopPropagation();
+    if(e.shiftKey&&lastSelectedIndex!==null){let start=Math.min(lastSelectedIndex,idx);let end=Math.max(lastSelectedIndex,idx);selectedIndices.clear();for(let i=start;i<=end;i++)selectedIndices.add(i);}
+    else if(e.metaKey||e.ctrlKey){if(selectedIndices.has(idx))selectedIndices.delete(idx);else selectedIndices.add(idx);lastSelectedIndex=idx;}
+    else{selectedIndices.clear();selectedIndices.add(idx);lastSelectedIndex=idx;}
+    updateSelectionUI();updateQAButtonText();
+}
+function updateSelectionUI(){document.querySelectorAll('.lib-card,.lib-list-row').forEach(el=>{let idx=parseInt(el.getAttribute('data-idx'));if(selectedIndices.has(idx))el.classList.add('selected');else el.classList.remove('selected');});}
+function updateCardStatusUI(idx){
+    let pillHtml=getStatusPill(campaignData[idx]);
+    let cardMeta=document.querySelector(`.lib-card[data-idx="${idx}"] .lib-card-meta`);
+    if(cardMeta)cardMeta.innerHTML=`<span>${campaignData[idx].meta.format==='PDF'?'PDF':campaignData[idx].meta.width+'x'+campaignData[idx].meta.height}</span>${pillHtml}`;
+    let listRowStatus=document.querySelector(`.lib-list-row[data-idx="${idx}"] > div:last-child`);if(listRowStatus)listRowStatus.innerHTML=pillHtml;
+}
+function updateQAButtonText(){
+    if(isProcessing)return;const btn=document.getElementById('btn-run-qa');const btnLabel=document.getElementById('btn-run-qa-text');
+    let targetQueue=[];
+    if(document.getElementById('inspector-state').classList.contains('active'))targetQueue=[activeFileIndex];
+    else targetQueue=selectedIndices.size>0?Array.from(selectedIndices):fileQueue.map((_,i)=>i);
+    if(targetQueue.length===0){btn.disabled=true;btnLabel.innerText='No Assets';return;}
+    let allProcessed=targetQueue.every(i=>campaignData[i].status==='pass'||campaignData[i].status==='fail');
+    if(allProcessed){btn.disabled=true;btnLabel.innerText=targetQueue.length===1?'Already Completed':'All Selected Completed';}
+    else{btn.disabled=false;
+        if(document.getElementById('inspector-state').classList.contains('active'))btnLabel.innerText='Run Current Asset';
+        else{let pendingCount=targetQueue.filter(i=>campaignData[i].status!=='pass'&&campaignData[i].status!=='fail').length;
+            if(selectedIndices.size===0)btnLabel.innerText=`Run All Pending (${pendingCount})`;
+            else if(selectedIndices.size===1)btnLabel.innerText='Run Selected Asset';
+            else btnLabel.innerText=`Run Pending Selected (${pendingCount})`;
+        }
+    }
+}
+function setLayout(type,btn){currentLayout=type;btn.parentElement.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('ap-card-size').style.display=type==='grid'?'flex':'none';renderLibrary();}
+function setCardSize(size,btn){currentCardSize=size;btn.parentElement.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderLibrary();}
+function saveInlineNote(index,value){if(selectedIndices.has(index)&&selectedIndices.size>1){selectedIndices.forEach(idx=>{campaignData[idx].userNotes=value;let input=document.querySelector(`[data-idx="${idx}"] .inline-note-input`);if(input&&idx!==index)input.value=value;});}else{campaignData[index].userNotes=value;}}
+function getStatusPill(f){
+    if(f.status==='pending')return`<div class="status-pill pending"><span class="material-symbols-outlined" style="font-size:13px;">schedule</span> Pending</div>`;
+    if(f.status==='loading')return`<div class="status-pill loading"><span class="material-symbols-outlined" style="font-size:13px;animation:spin 1s linear infinite;">sync</span> Running...</div>`;
+    if(f.ai&&f.ai.error)return`<div class="status-pill fail"><span class="material-symbols-outlined" style="font-size:13px;">error</span> Error</div>`;
+    let fails=calculateFailCount(f.ai,activeStandard);
+    if(fails>0)return`<div class="status-pill fail"><span class="material-symbols-outlined" style="font-size:13px;">error</span> Fail</div>`;
+    return`<div class="status-pill pass"><span class="material-symbols-outlined" style="font-size:13px;">check_circle</span> Pass</div>`;
+}
+function sortQueue(key){if(sortConfig.key===key)sortConfig.asc=!sortConfig.asc;else{sortConfig.key=key;sortConfig.asc=true;}renderLibrary();}
+function getSortIcon(key){if(sortConfig.key!==key)return'';return`<span class="material-symbols-outlined" style="font-size:15px;margin-left:4px;">${sortConfig.asc?'arrow_upward':'arrow_downward'}</span>`;}
+
+function renderLibrary(){
+    const container=document.getElementById('lib-content');container.innerHTML='';
+    let indices=Array.from(Array(fileQueue.length).keys());
+    if(sortConfig.key!=='none'){
+        indices.sort((a,b)=>{
+            let vA,vB;
+            if(sortConfig.key==='name'){vA=fileQueue[a].name.toLowerCase();vB=fileQueue[b].name.toLowerCase();}
+            if(sortConfig.key==='format'){vA=campaignData[a].meta.format;vB=campaignData[b].meta.format;}
+            if(sortConfig.key==='size'){vA=campaignData[a].meta.rawSize;vB=campaignData[b].meta.rawSize;}
+            if(sortConfig.key==='dim'){vA=campaignData[a].meta.width*campaignData[a].meta.height;vB=campaignData[b].meta.width*campaignData[b].meta.height;}
+            if(sortConfig.key==='status'){let w={'fail':0,'error':1,'pending':2,'loading':3,'pass':4};vA=w[campaignData[a].status]||5;vB=w[campaignData[b].status]||5;}
+            if(vA<vB)return sortConfig.asc?-1:1;if(vA>vB)return sortConfig.asc?1:-1;return 0;
+        });
+    }
+    if(currentLayout==='grid'){
+        let html=`<div class="lib-grid size-${currentCardSize}">`;
+        indices.forEach(i=>{
+            let f=fileQueue[i];let d=campaignData[i];let isPdf=d.meta.format==='PDF';let isSel=selectedIndices.has(i)?'selected':'';
+            let notes=d.userNotes?d.userNotes.replace(/"/g,'&quot;'):'';
+            html+=`<div class="lib-card ${isSel}" data-idx="${i}" id="lib-item-${i}" onclick="handleSelect(event,${i})" ondblclick="openInspector(${i})">
+                <div class="lib-card-img">${isPdf?'<span class="material-symbols-outlined" style="font-size:48px;color:var(--text-dim);">picture_as_pdf</span>':`<img src="${URL.createObjectURL(f)}">`}</div>
+                <div class="lib-card-info">
+                    <div class="lib-card-title" title="${f.name}">${f.name}</div>
+                    <div class="lib-card-meta"><span>${isPdf?'PDF':d.meta.width+'x'+d.meta.height}</span>${getStatusPill(d)}</div>
+                    <input type="text" class="inline-note-input" placeholder="Add note..." value="${notes}" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" oninput="saveInlineNote(${i},this.value)">
+                </div>
+            </div>`;
+        });container.innerHTML=html+'</div>';
+    } else {
+        let html=`<div class="lib-list"><div class="lib-list-header"><div></div><div class="col-sortable" onclick="sortQueue('name')">Name ${getSortIcon('name')}</div><div class="col-sortable" onclick="sortQueue('format')">Format ${getSortIcon('format')}</div><div class="col-sortable" onclick="sortQueue('size')">Size ${getSortIcon('size')}</div><div class="col-sortable" onclick="sortQueue('dim')">Dimensions ${getSortIcon('dim')}</div><div>Notes</div><div class="col-sortable" onclick="sortQueue('status')">Status ${getSortIcon('status')}</div></div>`;
+        indices.forEach(i=>{
+            let f=fileQueue[i];let d=campaignData[i];let isPdf=d.meta.format==='PDF';let notes=d.userNotes?d.userNotes.replace(/"/g,'&quot;'):'';let isSel=selectedIndices.has(i)?'selected':'';
+            html+=`<div class="lib-list-row ${isSel}" data-idx="${i}" id="lib-item-${i}" onclick="handleSelect(event,${i})" ondblclick="openInspector(${i})">
+                ${isPdf?'<div class="list-thumb" style="display:flex;align-items:center;justify-content:center;"><span class="material-symbols-outlined" style="font-size:18px;">picture_as_pdf</span></div>':`<img src="${URL.createObjectURL(f)}" class="list-thumb">`}
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${f.name}">${f.name}</div>
+                <div>${d.meta.format}</div><div>${d.meta.sizeKB} KB</div><div>${isPdf?'--':d.meta.width+'x'+d.meta.height}</div>
+                <input type="text" class="inline-note-input" placeholder="Add note..." value="${notes}" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" oninput="saveInlineNote(${i},this.value)">
+                <div>${getStatusPill(d)}</div>
+            </div>`;
+        });container.innerHTML=html+'</div>';
+    }
+}
+
+// ── PROCESSING ──────────────────────────────────────────────────────────────
+function updateTimer(){let e=Date.now()-processingStartTime;document.getElementById('progress-timer').innerText=`${(e/1000).toFixed(1)}s`;}
+
+async function rerunCurrentAsset() {
+    if (activeFileIndex === null) return;
+    campaignData[activeFileIndex].status = 'pending';
+    campaignData[activeFileIndex].ai = null;
+    updateCardStatusUI(activeFileIndex);
+    updateQAButtonText();
+    openInspector(activeFileIndex);
+    // Trigger single-asset processing
+    await processSingleAsset(activeFileIndex);
+    openInspector(activeFileIndex);
+    updateCardStatusUI(activeFileIndex);
+    updateQAButtonText();
+}
+
+async function processSingleAsset(i) {
+    campaignData[i].status = 'loading';
+    updateCardStatusUI(i);
+    const processEndpoint = 'https://n8n.ksvagency.com/webhook/creative-checker-process';
+    abortController = new AbortController();
+    try {
+        const fd = new FormData();
+        // Attach brand rules as JSON string
+        const brand = getActiveBrand();
+        fd.append('brandProfileJson', JSON.stringify(brand || {}));
+        fd.append('extractedColors', JSON.stringify(campaignData[i].extractedColors || []));
+        fd.append('geminiPrompt', buildGeminiPrompt(campaignData[i].extractedColors || []));
+
+        if(campaignData[i].meta.isGif && campaignData[i].meta.gifData) {
+            let frames=campaignData[i].meta.gifData.framesData;
+            let totalFrames=frames.length;let step=Math.max(1,Math.floor(totalFrames/8));let framesToStitch=[];
+            for(let f=0;f<totalFrames;f+=step){if(framesToStitch.length>=8)break;framesToStitch.push(frames[f]);}
+            let width=campaignData[i].meta.gifData.width;let height=campaignData[i].meta.gifData.height;
+            const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height*framesToStitch.length;
+            const ctx=canvas.getContext('2d');ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,canvas.width,canvas.height);
+            framesToStitch.forEach((frm,idx)=>{ctx.drawImage(frm.bitmap,0,idx*height);});
+            let blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.85));
+            fd.append('file',new File([blob],'filmstrip.jpg',{type:'image/jpeg'}));
+        } else {
+            let safeFile=(campaignData[i].meta.isGif||fileQueue[i].type.includes('pdf'))?fileQueue[i]:await sanitizeImage(fileQueue[i]);
+            fd.append('file',safeFile);
+        }
+
+        const res = await fetch(processEndpoint, {method:'POST',body:fd,signal:abortController.signal});
+        if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        let rawText = await res.text();
+        if(!rawText||rawText.trim()==='') throw new Error('Webhook returned an empty response.');
+        let cleanText = rawText.replace(/^```json\s*/mi,'').replace(/\s*```$/m,'').trim();
+        const aiData = JSON.parse(cleanText);
+        campaignData[i].ai = aiData;
+        let fails = calculateFailCount(aiData, activeStandard);
+        campaignData[i].status = fails > 0 ? 'fail' : 'pass';
+    } catch(e) {
+        console.error('QA Process Error:',e);
+        if(e.name==='AbortError') campaignData[i].status='pending';
+        else { campaignData[i].status='fail'; campaignData[i].ai={error:true,message:e.message}; }
+    }
+}
+
+async function toggleProcessing() {
+    const btn=document.getElementById('btn-run-qa');const btnLabel=document.getElementById('btn-run-qa-text');const btnIcon=document.getElementById('btn-run-icon');
+    if(isProcessing){
+        shouldCancel=true;if(abortController)abortController.abort();
+        isProcessing=false;btn.className='btn-primary';btnIcon.innerText='play_arrow';
+        document.getElementById('progress-container').style.display='none';clearInterval(processingTimer);
+        for(let i=0;i<fileQueue.length;i++)if(campaignData[i].status==='loading'){campaignData[i].status='pending';updateCardStatusUI(i);}
+        updateQAButtonText();return;
+    }
+    let targetQueue=[];
+    if(document.getElementById('inspector-state').classList.contains('active'))targetQueue=[activeFileIndex];
+    else targetQueue=selectedIndices.size>0?Array.from(selectedIndices):fileQueue.map((_,i)=>i);
+    let itemsToProcess=targetQueue.filter(i=>campaignData[i].status!=='pass'&&campaignData[i].status!=='fail');
+    if(itemsToProcess.length===0)return;
+    isProcessing=true;shouldCancel=false;
+    btn.className='btn-primary btn-danger';btnIcon.innerText='close';btnLabel.innerText='Stop Processing';
+    let totalToProcess=itemsToProcess.length;let processedCount=0;
+    const pCont=document.getElementById('progress-container');const pText=document.getElementById('progress-text');const pFill=document.getElementById('progress-bar-fill');const pCirc=document.getElementById('progress-circle');
+    pCont.style.display='flex';pText.innerText=`Processing 0 of ${totalToProcess}...`;pFill.style.width='0%';pCirc.style.background=`conic-gradient(var(--accent-purple) 0%,rgba(255,255,255,0.1) 0%)`;
+    processingStartTime=Date.now();processingTimer=setInterval(updateTimer,100);
+
+    for(let idx=0;idx<itemsToProcess.length;idx++){
+        let i=itemsToProcess[idx];if(shouldCancel)break;
+        if(activeFileIndex===i)openInspector(i);
+        await processSingleAsset(i);
+        if(!shouldCancel){
+            updateCardStatusUI(i);if(activeFileIndex===i)openInspector(i);
+            processedCount++;let pct=(processedCount/totalToProcess)*100;
+            pText.innerText=`Processing ${processedCount} of ${totalToProcess}...`;pFill.style.width=`${pct}%`;
+            pCirc.style.background=`conic-gradient(var(--accent-purple) ${pct}%,rgba(255,255,255,0.1) ${pct}%)`;
+        }
+    }
+    isProcessing=false;btn.className='btn-primary';btnIcon.innerText='play_arrow';clearInterval(processingTimer);
+    if(!shouldCancel){pText.innerText=`Completed ${processedCount} asset${processedCount!==1?'s':''}!`;setTimeout(()=>{if(!isProcessing)pCont.style.display='none';},4000);}
+    updateQAButtonText();
+}
+
+// ── KEYBOARD ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown',(e)=>{
+    const isInput=document.activeElement.tagName==='TEXTAREA'||document.activeElement.tagName==='INPUT'||document.activeElement.isContentEditable;
+    const resetModal=document.getElementById('reset-modal');const dupModal=document.getElementById('duplicate-modal');const brandModal=document.getElementById('brand-modal');
+    const inspectorState=document.getElementById('inspector-state');const libraryState=document.getElementById('library-state');
+    if(e.key==='Escape'){
+        if(brandModal.classList.contains('active')){closeBrandModal();return;}
+        if(resetModal.classList.contains('active')){closeResetModal();return;}
+        if(dupModal.classList.contains('active')){cancelDuplicateUpload();return;}
+        if(inspectorState.classList.contains('active')&&!isInput){openLibrary();return;}
+    }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'&&!isInput){if(libraryState.classList.contains('active')){e.preventDefault();fileQueue.forEach((_,i)=>selectedIndices.add(i));lastSelectedIndex=fileQueue.length-1;updateSelectionUI();updateQAButtonText();}}
+    if(inspectorState.classList.contains('active')&&!isInput){if(e.key==='ArrowRight')goNext();if(e.key==='ArrowLeft')goPrev();}
+    if(e.key==='Enter'&&document.activeElement.id==='workspace-title'){e.preventDefault();document.activeElement.blur();}
+});
+
+function goNext(){if(activeFileIndex!==null&&activeFileIndex<fileQueue.length-1)openInspector(activeFileIndex+1);}
+function goPrev(){if(activeFileIndex!==null&&activeFileIndex>0)openInspector(activeFileIndex-1);}
+function saveNotes(){if(activeFileIndex!==null){let val=document.getElementById('user-notes-input').value;campaignData[activeFileIndex].userNotes=val;let input=document.querySelector(`[data-idx="${activeFileIndex}"] .inline-note-input`);if(input)input.value=val;}}
+
+// ── INSPECTOR RENDER ─────────────────────────────────────────────────────────
+function openInspector(index) {
+    activeFileIndex=index;switchViewState('inspector-state');gifPlayer.stop();
+    let d=campaignData[index];let f=fileQueue[index];
+    document.getElementById('btn-prev').disabled=index===0;
+    document.getElementById('btn-next').disabled=index===fileQueue.length-1;
+    document.getElementById('inspect-filename').innerText=f.name;
+    document.getElementById('inspect-filename-side').innerText=f.name;
+    document.getElementById('user-notes-input').value=d.userNotes||'';
+
+    // Show rerun button if already processed
+    const rerunBtn = document.getElementById('btn-rerun-asset');
+    rerunBtn.style.display = (d.status === 'pass' || d.status === 'fail') ? 'inline-flex' : 'none';
+
+    const mediaContainer=document.getElementById('media-container');const scrubberBar=document.getElementById('gif-scrubber-bar');
+    if(d.meta.format==='PDF'){
+        mediaContainer.innerHTML=`<iframe class="pdf-iframe" src="${URL.createObjectURL(f)}#toolbar=0"></iframe>`;scrubberBar.style.display='none';
+    } else if(d.meta.isGif&&d.meta.gifData){
+        mediaContainer.innerHTML=`<canvas class="gif-canvas" id="gif-canvas"></canvas>`;scrubberBar.style.display='flex';
+        let btnsHtml='';
+        d.meta.gifData.framesData.forEach((frame,idx)=>{let sec=(frame.delay/1000).toFixed(2)+'s';btnsHtml+=`<button class="frame-btn" id="fbtn-${idx}" onclick="gifPlayer.scrub(${idx})"><span class="f-num">F${idx+1}</span><span class="f-time">${sec}</span></button>`;});
+        document.getElementById('gif-frame-btns').innerHTML=btnsHtml;gifPlayer.load(d.meta.gifData.framesData,d.meta.gifData.width,d.meta.gifData.height);
+    } else {
+        mediaContainer.innerHTML=`<img id="result-img" class="preview-img" src="${URL.createObjectURL(f)}">`;scrubberBar.style.display='none';
+    }
+
+    // Extracted colors strip
+    const strip = document.getElementById('extracted-palette-strip');
+    if (d.extractedColors && d.extractedColors.length > 0) {
+        strip.innerHTML = d.extractedColors.map(c => `<div class="palette-chip" style="background:${c};" title="${c}" onclick="navigator.clipboard.writeText('${c}')"></div>`).join('');
+    } else {
+        strip.innerHTML = '<span style="color:var(--text-dim);font-size:12px;">Not available for this file type</span>';
+    }
+
+    // On-brand palette match
+    const brand = getActiveBrand();
+    const matchWrap = document.getElementById('brand-palette-match-wrap');
+    const matchDetail = document.getElementById('brand-palette-match-detail');
+    if (brand && brand.palette && brand.palette.length > 0 && d.extractedColors && d.extractedColors.length > 0) {
+        matchWrap.style.display = 'block';
+        const result = checkPaletteOnBrand(d.extractedColors, brand.palette);
+        const statusColor = result.status === 'on' ? 'var(--pass-green)' : result.status === 'partial' ? 'var(--warn-yellow)' : result.status === 'off' ? 'var(--fail-red)' : 'var(--text-dim)';
+        const label = result.status === 'on' ? 'On Brand' : result.status === 'partial' ? 'Mostly On Brand' : result.status === 'off' ? 'Off Brand' : 'Unknown';
+        let html = `<div class="palette-match-row"><span class="match-label">${result.detail}</span><span class="match-badge ${result.status === 'on' ? 'on' : result.status === 'off' ? 'off' : 'unknown'}">${label}</span></div>`;
+        if (result.offBrand && result.offBrand.length > 0) {
+            html += `<div style="margin-top:8px;font-size:12px;color:var(--text-dim);">Off-brand colors detected:</div>
+            <div class="palette-strip" style="margin-top:6px;">${result.offBrand.map(c=>`<div class="palette-chip" style="background:${c};border:2px solid var(--fail-red);" title="${c}"></div>`).join('')}</div>`;
+        }
+        // Show approved palette for reference
+        html += `<div style="margin-top:10px;font-size:12px;color:var(--text-dim);">Approved palette:</div>
+        <div class="palette-strip" style="margin-top:5px;">${(brand.palette||[]).map(c=>`<div class="palette-chip" style="background:${c};border:2px solid rgba(100,92,255,0.4);" title="${c}"></div>`).join('')}</div>`;
+        matchDetail.innerHTML = html;
+    } else {
+        matchWrap.style.display = 'none';
+    }
+
+    // Brand banner
+    renderBrandBanner(d);
+
+    // Production tab
+    const network=document.getElementById('network-select').value;
+    let sizeLimit=150000;let sizeLimitStr='< 150KB';let checkBorder=true;
+    if(network==='meta'){sizeLimit=30000000;sizeLimitStr='< 30MB';checkBorder=false;}
+    else if(network==='linkedin'){sizeLimit=5000000;sizeLimitStr='< 5MB';checkBorder=false;}
+    document.getElementById('label-size-limit').innerText=`File Size (${sizeLimitStr})`;
+    document.getElementById('meta-dim').innerText=d.meta.format==='PDF'?'--':`${d.meta.width}x${d.meta.height}`;
+    document.getElementById('meta-size').innerText=`${d.meta.sizeKB} KB`;document.getElementById('meta-format').innerText=d.meta.format;
+    const specSizeBadge=document.getElementById('spec-size-badge');
+    if(d.meta.rawSize>sizeLimit){specSizeBadge.className='spec-indicator fail';specSizeBadge.innerText='FAIL';}else{specSizeBadge.className='spec-indicator pass';specSizeBadge.innerText='PASS';}
+    const specBorderBadge=document.getElementById('spec-border-badge');
+    if(checkBorder&&!d.meta.isGif&&d.meta.format!=='PDF'){
+        if(d.meta.missingBorder){specBorderBadge.className='spec-indicator fail';specBorderBadge.innerText='FAIL (Add 1px Border)';}
+        else{specBorderBadge.className='spec-indicator pass';specBorderBadge.innerText='PASS (Border Detected/Dark BG)';}
+    } else {specBorderBadge.className='spec-indicator';specBorderBadge.innerText='--';}
+    const gifSection=document.getElementById('gif-meta-section');
+    if(d.meta.isGif&&d.meta.gifData){
+        gifSection.style.display='block';let g=d.meta.gifData;
+        let totalPlays=g.loopCount===0?'Inf':(g.loopCount+1);let isInfinite=totalPlays==='Inf';let totalSeconds=isInfinite?999:((g.totalMs/1000)*totalPlays);
+        document.getElementById('meta-gif-loop-dur').innerText=(g.totalMs/1000).toFixed(2)+'s';
+        document.getElementById('meta-gif-loop').innerText=isInfinite?'Infinite (0)':`Plays ${totalPlays}x`;
+        document.getElementById('meta-gif-frames').innerText=g.frameCount;
+        let durBadgeHtml='';
+        if(network==='google'){document.getElementById('label-gif-limit').innerText='Total Duration (< 30s)';durBadgeHtml=(isInfinite||totalSeconds>30)?`<span class="spec-indicator fail">FAIL (Too Long)</span>`:`<span class="spec-indicator pass">PASS`;}
+        else document.getElementById('label-gif-limit').innerText='Total Duration';
+        document.getElementById('meta-gif-total-dur').innerHTML=`${isInfinite?'Infinite':totalSeconds.toFixed(2)+'s'} ${durBadgeHtml}`;
+        let pillsHtml='';g.framesData.forEach((frame,idx)=>{pillsHtml+=`<div class="frame-pill" id="pill-${idx}" onclick="gifPlayer.scrub(${idx})">F${idx+1}: ${(frame.delay/1000).toFixed(2)}s</div>`;});
+        document.getElementById('meta-gif-breakdown').innerHTML=pillsHtml;
+    } else {gifSection.style.display='none';}
+
+    // AI fields
+    if(d.status==='pending'||d.status==='loading'){
+        document.getElementById('det-client').innerText='--';document.getElementById('det-font').innerText='--';
+        document.getElementById('det-copy-raw').innerText='--';document.getElementById('note-copy').innerText='--';
+        document.getElementById('note-voice').innerText='--';document.getElementById('note-brand').innerText='--';
+        document.getElementById('spec-density').innerText='--%';
+        document.getElementById('cta-section').style.display='none';
+        document.getElementById('contrast-container').innerHTML=`<div style="text-align:center;padding:20px;color:var(--text-dim);font-size:13px;">${d.status==='loading'?'<div style="animation:spin 1s linear infinite;display:inline-block;border:2px solid rgba(255,255,255,0.1);border-top-color:var(--accent-purple);border-radius:50%;width:16px;height:16px;vertical-align:middle;margin-right:8px;"></div> Analyzing...':'Run QA to analyze.'}</div>`;
+    } else if(d.ai&&!d.ai.error){
+        document.getElementById('det-client').innerText=d.ai.detectedBrand||'Unknown';
+        document.getElementById('det-font').innerText=d.ai.fontAnalysis?.bestGuess||'Unknown';
+        document.getElementById('spec-density').innerText=d.ai.textDensityPercentage||'--%';
+        document.getElementById('note-copy').innerText=d.ai.grammar?.notes||'No issues found.';
+        document.getElementById('note-voice').innerText=d.ai.voiceTone?.notes||'--';
+        document.getElementById('note-brand').innerText=d.ai.branding?.notes||'Compliant.';
+
+        // CTA
+        if(d.ai.ctaAnalysis&&d.ai.ctaAnalysis.ctaText){
+            document.getElementById('cta-section').style.display='block';
+            document.getElementById('cta-text').innerText=d.ai.ctaAnalysis.ctaText||'--';
+            const actionBadge=document.getElementById('cta-actionable');
+            actionBadge.innerHTML=d.ai.ctaAnalysis.isActionable?`<span class="spec-indicator pass">Yes</span>`:`<span class="spec-indicator fail">No</span>`;
+            document.getElementById('cta-notes').innerText=d.ai.ctaAnalysis.notes||'';
+        } else { document.getElementById('cta-section').style.display='none'; }
+
+        // Copy
+        let copyHtml='No text detected.';
+        if(d.ai.extractedCopy){
+            if(Array.isArray(d.ai.extractedCopy))copyHtml=d.ai.extractedCopy.map(c=>`<div style="margin-bottom:12px;"><div style="color:var(--text-dim);font-size:11px;text-transform:uppercase;font-weight:600;margin-bottom:2px;letter-spacing:0.05em;">${c.frameOrSection||'TEXT'}</div><div style="white-space:pre-wrap;">${c.text||''}</div></div>`).join('');
+            else copyHtml=String(d.ai.extractedCopy).replace(/\n/g,'<br>');
+        }
+        document.getElementById('det-copy-raw').innerHTML=copyHtml;
+
+        if(d.ai.contrastAnalyses&&d.ai.contrastAnalyses.length>0)renderContrastBlocks(d.ai.contrastAnalyses);
+        else document.getElementById('contrast-container').innerHTML="<p style='color:var(--text-dim);font-size:13px;text-align:center;padding:20px;'>No text elements detected.</p>";
+    } else {
+        document.getElementById('cta-section').style.display='none';
+        const errMsg = (d.ai&&d.ai.message) ? `<div style="font-size:11px;margin-top:6px;opacity:0.7;">${d.ai.message}</div>` : '';
+        document.getElementById('contrast-container').innerHTML=`<p style='color:var(--fail-red);font-size:13px;text-align:center;padding:20px;'>Error analyzing file.${errMsg}</p>`;
+    }
+    updateQAButtonText();
+}
+
+function renderBrandBanner(d) {
+    const wrap = document.getElementById('brand-check-banner-wrap');
+    const brand = getActiveBrand();
+    if (!brand) {
+        wrap.innerHTML = `<div class="brand-check-banner unverified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">info</span><div>No brand selected. QA checked universal rules only. <button onclick="openBrandModal()" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:12px;padding:0;">Select a brand →</button></div></div>`;
+        return;
+    }
+    if (d.status === 'pending' || d.status === 'loading' || !d.ai) {
+        wrap.innerHTML = `<div class="brand-check-banner verified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">verified</span><div>Checking against <b>${brand.name}</b> brand profile.</div></div>`;
+        return;
+    }
+    const brandStatus = (d.ai?.branding?.status || '').toLowerCase();
+    if (brandStatus.includes('fail')) {
+        wrap.innerHTML = `<div class="brand-check-banner partial"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">warning</span><div><b>${brand.name}</b> brand violations found. See Brand Rules below.</div></div>`;
+    } else if (brandStatus.includes('pass')) {
+        wrap.innerHTML = `<div class="brand-check-banner verified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">verified</span><div>Checked against <b>${brand.name}</b> — brand compliant.</div></div>`;
+    } else {
+        wrap.innerHTML = `<div class="brand-check-banner unverified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">help</span><div>Brand check unverified for <b>${brand.name}</b>.</div></div>`;
+    }
+}
+
+function setStandard(std) {
+    activeStandard=std;document.getElementById('btn-aa').classList.toggle('active',std==='AA');document.getElementById('btn-aaa').classList.toggle('active',std==='AAA');
+    document.querySelectorAll('.contrast-block').forEach((item,i)=>{
+        const ht=document.getElementById(`ht-${i}`);const hb=document.getElementById(`hb-${i}`);
+        if(ht&&hb){let r=calcRatio(ht.value,hb.value);let pAll=isPass(r,false)&&isPass(r,true);
+            document.getElementById(`rat-${i}`).innerText=r.toFixed(2);
+            const statusInd=document.getElementById(`status-ind-${i}`);statusInd.style.color=pAll?'var(--pass-green)':'var(--fail-red)';
+            statusInd.querySelector('.status-dot').className=`status-dot ${pAll?'pass':'fail'}`;statusInd.querySelector('.status-text').innerText=pAll?'Pass':'Fail';}
+    });
+    if(campaignData[activeFileIndex]){let fails=calculateFailCount(campaignData[activeFileIndex].ai,activeStandard);if(fails!==-1){campaignData[activeFileIndex].status=fails>0?'fail':'pass';updateCardStatusUI(activeFileIndex);}}
+}
+
+function renderContrastBlocks(analyses) {
+    const container=document.getElementById('contrast-container');container.innerHTML='';
+    analyses.forEach((item,i)=>{
+        let n=item.sectionName||item.section||item.title||item.name||`Section ${i+1}`;
+        let colors=getColorsFromAI(item);let bTxt=colors.txt;let bBg=colors.bg;
+        let rat=calcRatio(bTxt,bBg);let pAll=isPass(rat,false)&&isPass(rat,true);
+        let html=`<div class="contrast-block">
+            <div class="c-header">
+                <div style="font-weight:600;font-size:13px;color:var(--text-main);line-height:1.4;padding-right:12px;">${n}</div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;white-space:nowrap;color:${pAll?'var(--pass-green)':'var(--fail-red)'}" id="status-ind-${i}">
+                    <div class="status-dot ${pAll?'pass':'fail'}"></div><span class="status-text">${pAll?'Pass':'Fail'}</span>
+                    <span id="rat-${i}" style="font-family:'SF Mono',monospace;">${rat.toFixed(2)}</span>:1
+                </div>
+            </div>
+            <div class="color-editor"><span style="font-size:11px;color:var(--text-dim);width:24px;">TXT</span><input type="color" id="pt-${i}" value="${bTxt}"><input type="text" class="hex-input" id="ht-${i}" value="${bTxt}"><input type="range" class="range-slider" id="st-${i}" min="-100" max="100" value="0"></div>
+            <div class="color-editor"><span style="font-size:11px;color:var(--text-dim);width:24px;">BG</span><input type="color" id="pb-${i}" value="${bBg}"><input type="text" class="hex-input" id="hb-${i}" value="${bBg}"><input type="range" class="range-slider" id="sb-${i}" min="-100" max="100" value="0"></div>
+        </div>`;
+        container.insertAdjacentHTML('beforeend',html);
+        const pt=document.getElementById(`pt-${i}`),ht=document.getElementById(`ht-${i}`),st=document.getElementById(`st-${i}`);
+        const pb=document.getElementById(`pb-${i}`),hb=document.getElementById(`hb-${i}`),sb=document.getElementById(`sb-${i}`);
+        const updateUI=()=>{
+            let nT=adjLight(bTxt,st.value);let nB=adjLight(bBg,sb.value);
+            pt.value=nT;ht.value=nT;pb.value=nB;hb.value=nB;
+            let nR=calcRatio(nT,nB);let pA=isPass(nR,false)&&isPass(nR,true);
+            document.getElementById(`rat-${i}`).innerText=nR.toFixed(2);
+            const statusInd=document.getElementById(`status-ind-${i}`);statusInd.style.color=pA?'var(--pass-green)':'var(--fail-red)';
+            statusInd.querySelector('.status-dot').className=`status-dot ${pA?'pass':'fail'}`;statusInd.querySelector('.status-text').innerText=pA?'Pass':'Fail';
+            if(campaignData[activeFileIndex]){let fails=calculateFailCount(campaignData[activeFileIndex].ai,activeStandard);campaignData[activeFileIndex].status=fails>0?'fail':'pass';updateCardStatusUI(activeFileIndex);}
+        };
+        st.addEventListener('input',updateUI);sb.addEventListener('input',updateUI);
+        const ovr=(t,v)=>{if(/^#[0-9A-F]{6}$/i.test(v)){if(t==='t'){bTxt=v.toUpperCase();st.value=0;}else{bBg=v.toUpperCase();sb.value=0;}updateUI();}};
+        pt.addEventListener('input',e=>ovr('t',e.target.value));ht.addEventListener('change',e=>ovr('t',e.target.value));
+        pb.addEventListener('input',e=>ovr('b',e.target.value));hb.addEventListener('change',e=>ovr('b',e.target.value));
+    });
+}
+</script>
+</body>
+</html>
