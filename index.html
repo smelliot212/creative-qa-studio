@@ -346,7 +346,7 @@
     <div class="toolbar-group">
         <span class="material-symbols-outlined" style="color:var(--accent-purple);">diamond</span>
         <span style="font-weight:600;font-size:15px;">Creative QA Studio</span>
-        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 7px;border-radius:100px;background:rgba(100,92,255,0.15);color:var(--accent-purple);border:1px solid rgba(100,92,255,0.3);font-family:'SF Mono',monospace;cursor:default;">v2026.05.22.1331</span>
+        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 7px;border-radius:100px;background:rgba(100,92,255,0.15);color:var(--accent-purple);border:1px solid rgba(100,92,255,0.3);font-family:'SF Mono',monospace;cursor:default;">v2026.05.22.1343</span>
     </div>
 
     <!-- Brand Badge (center) -->
@@ -823,37 +823,62 @@ function cancelBrandEdit() {
 }
 
 // ── COLOR EXTRACTION (CLIENT-SIDE) ─────────────────────────────────────────
-async function extractDominantColors(file, count = 10) {
+async function extractDominantColors(file, count = 12) {
     return new Promise(resolve => {
         const img = new Image();
         img.onload = () => {
-            const SIZE = 120; // downsample for speed
+            const SIZE = 160;
             const canvas = document.createElement('canvas');
             canvas.width = SIZE; canvas.height = SIZE;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             ctx.drawImage(img, 0, 0, SIZE, SIZE);
             const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
-            // Quantize to buckets of 32
+
+            // Flatness test: measure color variance in a 5x5 neighborhood
+            // Low variance = flat brand color. High variance = photographic region.
+            const isFlat = (x, y) => {
+                if (x < 2 || y < 2 || x > SIZE-3 || y > SIZE-3) return false;
+                let sumR=0,sumG=0,sumB=0,n=0;
+                for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++) {
+                    const pi=((y+dy)*SIZE+(x+dx))*4;
+                    sumR+=data[pi];sumG+=data[pi+1];sumB+=data[pi+2];n++;
+                }
+                const aR=sumR/n,aG=sumG/n,aB=sumB/n;
+                let mad=0;
+                for (let dy=-2;dy<=2;dy++) for (let dx=-2;dx<=2;dx++) {
+                    const pi=((y+dy)*SIZE+(x+dx))*4;
+                    mad+=Math.abs(data[pi]-aR)+Math.abs(data[pi+1]-aG)+Math.abs(data[pi+2]-aB);
+                }
+                return (mad/n) < 18; // threshold: flat if mean deviation < 18
+            };
+
             const buckets = {};
-            for (let i = 0; i < data.length; i += 4) {
-                const a = data[i+3];
-                if (a < 128) continue; // skip transparent
-                const r = Math.round(data[i]   / 32) * 32;
-                const g = Math.round(data[i+1] / 32) * 32;
-                const b = Math.round(data[i+2] / 32) * 32;
-                const key = `${r},${g},${b}`;
-                buckets[key] = (buckets[key] || 0) + 1;
+            let flatCount = 0;
+            for (let y=2;y<SIZE-2;y+=3) {
+                for (let x=2;x<SIZE-2;x+=3) {
+                    const i=(y*SIZE+x)*4;
+                    if (data[i+3]<128) continue;
+                    if (!isFlat(x,y)) continue;
+                    flatCount++;
+                    const r=Math.round(data[i]/20)*20;
+                    const g=Math.round(data[i+1]/20)*20;
+                    const b=Math.round(data[i+2]/20)*20;
+                    const key=r+','+g+','+b;
+                    buckets[key]=(buckets[key]||0)+1;
+                }
             }
-            const sorted = Object.entries(buckets).sort((a,b) => b[1]-a[1]).slice(0, count);
-            const hexes = sorted.map(([key]) => {
-                const [r,g,b] = key.split(',').map(Number);
-                return '#' + [r,g,b].map(v => Math.min(255,v).toString(16).padStart(2,'0')).join('').toUpperCase();
+            // If image is mostly photographic (very few flat pixels), return empty
+            if (flatCount < 25) { URL.revokeObjectURL(img.src); resolve([]); return; }
+            const sorted=Object.entries(buckets).sort((a,b)=>b[1]-a[1]).slice(0,count);
+            const hexes=sorted.map(([key])=>{
+                const [r,g,b]=key.split(',').map(Number);
+                return '#'+[r,g,b].map(v=>Math.min(255,v).toString(16).padStart(2,'0')).join('').toUpperCase();
             });
             URL.revokeObjectURL(img.src);
             resolve(hexes);
         };
-        img.onerror = () => resolve([]);
-        img.src = URL.createObjectURL(file);
+        img.onerror=()=>resolve([]);
+        img.src=URL.createObjectURL(file);
     });
 }
 // ── PIXEL RESAMPLING — replace AI color guesses with actual file pixel values ──
@@ -1378,6 +1403,16 @@ async function processSingleAsset(i) {
         if (aiData.contrastAnalyses && aiData.contrastAnalyses.length > 0 && !fileQueue[i].type.includes('pdf')) {
             aiData.contrastAnalyses = await resampleContrastColors(fileQueue[i], aiData.contrastAnalyses);
         }
+        // Auto-detect brand from Gemini detectedBrand field
+        if (aiData.detectedBrand && aiData.detectedBrand !== 'Unknown') {
+            const autoMatch = fuzzyMatchBrand(aiData.detectedBrand);
+            campaignData[i].autoDetectedBrand = autoMatch || null;
+            if (autoMatch && !localStorage.getItem(ACTIVE_BRAND_KEY)) {
+                setActiveBrand(autoMatch.id);
+            }
+        } else {
+            campaignData[i].autoDetectedBrand = null;
+        }
         campaignData[i].ai = aiData;
         let fails = calculateFailCount(aiData, activeStandard);
         campaignData[i].status = fails > 0 ? 'fail' : 'pass';
@@ -1649,6 +1684,8 @@ function renderContrastBlocks(analyses) {
 
 // Expose all functions used in inline onclick attributes to global scope
 window.openBrandModal = openBrandModal;
+window.fuzzyMatchBrand = fuzzyMatchBrand;
+window.fuzzyMatchBrand = fuzzyMatchBrand;
 window.closeBrandModal = closeBrandModal;
 window.switchBrandTab = switchBrandTab;
 window.selectBrand = selectBrand;
@@ -1687,4 +1724,27 @@ window.gifPlayer = gifPlayer;
 
 </script>
 </body>
-</html>
+</html>function renderBrandBanner(d){
+    const wrap=document.getElementById('brand-check-banner-wrap');
+    const brand=getActiveBrand();
+    const detName=d.ai?.detectedBrand;
+    const autoMatch=d.autoDetectedBrand;
+    let autoNote='';
+    if(detName&&detName!=='Unknown'){
+        if(autoMatch)autoNote='<div style="font-size:11px;margin-top:3px;opacity:0.75;">AI detected: <b>'+detName+'</b> — matched to profile automatically.</div>';
+        else if(!brand)autoNote='<div style="font-size:11px;margin-top:3px;opacity:0.75;">AI detected: <b>'+detName+'</b> — no matching profile. <button onclick="openBrandModal()" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;font-family:var(--font-ui);">Select manually →</button></div>';
+    }
+    const autoTag=autoMatch?'<span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.15);margin-left:5px;letter-spacing:0.03em;">AUTO</span>':'';
+    if(!brand){
+        wrap.innerHTML='<div class="brand-check-banner unverified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">info</span><div>No brand selected. Universal rules only. <button onclick="openBrandModal()" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:12px;padding:0;font-family:var(--font-ui);">Select brand →</button>'+autoNote+'</div></div>';
+        return;
+    }
+    if(d.status==='pending'||d.status==='loading'||!d.ai){
+        wrap.innerHTML='<div class="brand-check-banner verified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">verified</span><div>Checking against <b>'+brand.name+'</b>'+autoTag+'</div></div>';
+        return;
+    }
+    const bs=(d.ai?.branding?.status||'').toLowerCase();
+    if(bs.includes('fail'))wrap.innerHTML='<div class="brand-check-banner partial"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">warning</span><div><b>'+brand.name+'</b>'+autoTag+' — violations found. See Brand Rules below.'+autoNote+'</div></div>';
+    else if(bs.includes('pass'))wrap.innerHTML='<div class="brand-check-banner verified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">verified</span><div>Checked against <b>'+brand.name+'</b>'+autoTag+' — compliant.'+autoNote+'</div></div>';
+    else wrap.innerHTML='<div class="brand-check-banner unverified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">help</span><div>Brand check unverified for <b>'+brand.name+'</b>'+autoTag+'.'+autoNote+'</div></div>';
+}
