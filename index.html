@@ -251,7 +251,30 @@
         #progress-timer { color:var(--text-dim); font-size:13px; font-family:'SF Mono',monospace; z-index:1; }
 
         /* Rerun button */
-        .btn-rerun { background:transparent; border:1px solid var(--border-color); color:var(--text-dim); padding:3px 8px; border-radius:4px; font-size:11px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:0.15s; }
+        /* Brand Rules Simplified Display */
+        .brand-rule-item { margin-bottom:8px; border-radius:var(--radius-sm); border:1px solid var(--border-color); overflow:hidden; }
+        .brand-rule-header { display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; user-select:none; background:var(--bg-base); transition:0.15s; }
+        .brand-rule-header:hover { background:var(--bg-hover); }
+        .brand-rule-icon { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:12px; font-weight:700; }
+        .brand-rule-icon.pass { background:rgba(20,174,92,0.2); color:var(--pass-green); }
+        .brand-rule-icon.fail { background:rgba(242,72,34,0.2); color:var(--fail-red); }
+        .brand-rule-icon.warn { background:rgba(242,196,76,0.2); color:var(--warn-yellow); }
+        .brand-rule-label { font-size:13px; font-weight:600; flex:1; }
+        .brand-rule-summary { font-size:12px; color:var(--text-dim); flex:2; }
+        .brand-rule-chevron { font-size:16px; color:var(--text-dim); transition:transform 0.2s; flex-shrink:0; }
+        .brand-rule-item.open .brand-rule-chevron { transform:rotate(180deg); }
+        .brand-rule-detail { display:none; padding:10px 12px; font-size:12px; line-height:1.6; color:var(--text-dim); border-top:1px solid var(--border-color); background:var(--bg-card); }
+        .brand-rule-item.open .brand-rule-detail { display:block; }
+
+        .brand-overall { display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:var(--radius-sm); margin-bottom:12px; font-size:13px; font-weight:600; }
+        .brand-overall.pass { background:rgba(20,174,92,0.1); border:1px solid rgba(20,174,92,0.3); color:var(--pass-green); }
+        .brand-overall.fail { background:rgba(242,72,34,0.1); border:1px solid rgba(242,72,34,0.3); color:var(--fail-red); }
+        .brand-overall.warn { background:rgba(242,196,76,0.1); border:1px solid rgba(242,196,76,0.3); color:var(--warn-yellow); }
+        .brand-overall.unverified { background:var(--bg-card); border:1px solid var(--border-color); color:var(--text-dim); }
+
+        .brand-notes-plain { font-size:13px; line-height:1.6; color:var(--text-dim); padding:4px 0; }
+
+                .btn-rerun { background:transparent; border:1px solid var(--border-color); color:var(--text-dim); padding:3px 8px; border-radius:4px; font-size:11px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; transition:0.15s; }
         .btn-rerun:hover { border-color:var(--accent-purple); color:var(--accent-purple); }
     </style>
 </head>
@@ -346,7 +369,7 @@
     <div class="toolbar-group">
         <span class="material-symbols-outlined" style="color:var(--accent-purple);">diamond</span>
         <span style="font-weight:600;font-size:15px;">Creative QA Studio</span>
-        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 7px;border-radius:100px;background:rgba(100,92,255,0.15);color:var(--accent-purple);border:1px solid rgba(100,92,255,0.3);font-family:'SF Mono',monospace;cursor:default;">v2026.05.22.1358</span>
+        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 7px;border-radius:100px;background:rgba(100,92,255,0.15);color:var(--accent-purple);border:1px solid rgba(100,92,255,0.3);font-family:'SF Mono',monospace;cursor:default;">v2026.05.22.1415</span>
     </div>
 
     <!-- Brand Badge (center) -->
@@ -571,16 +594,22 @@ async function loadBrandsFromJSON() {
 function saveLocalBrands(brands) { localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(brands)); }
 function getLocalBrands() { try { return JSON.parse(localStorage.getItem(LOCAL_BRANDS_KEY) || '[]'); } catch(e) { return []; } }
 function getActiveBrand() {
-    const id = localStorage.getItem(ACTIVE_BRAND_KEY);
-    if (!id) return null;
-    return brandsCache.find(b => b.id === id) || null;
+    if (!_activeBrandId) return null;
+    return brandsCache.find(b => b.id === _activeBrandId) || null;
 }
-function setActiveBrand(id) {
-    if (id) localStorage.setItem(ACTIVE_BRAND_KEY, id);
-    else localStorage.removeItem(ACTIVE_BRAND_KEY);
+function setActiveBrand(id, saveToStorage) {
+    // saveToStorage=true only when user manually picks a brand
+    if (saveToStorage) {
+        if (id) localStorage.setItem(ACTIVE_BRAND_KEY, id);
+        else localStorage.removeItem(ACTIVE_BRAND_KEY);
+    }
+    _activeBrandId = id || null;
     updateBrandBadge();
     updateUploadBrandNotice();
 }
+
+// In-memory active brand (not persisted by default)
+let _activeBrandId = localStorage.getItem(ACTIVE_BRAND_KEY) || null;
 function exportBrandsJSON() {
     const blob = new Blob([JSON.stringify({ brands: brandsCache }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'brands.json'; a.click();
@@ -644,9 +673,10 @@ function renderBrandSelectList() {
     const brands = brandsCache;
     const active = getActiveBrand();
     const container = document.getElementById('brand-select-list');
+    const isManual = !!localStorage.getItem(ACTIVE_BRAND_KEY);
     let html = `<div class="no-brand-option ${!active ? 'active-brand' : ''}" onclick="selectBrand(null)">
-        <span class="material-symbols-outlined" style="font-size:20px;opacity:0.5;">block</span>
-        <div><div style="font-size:14px;font-weight:500;">No Brand / One-Off</div><div style="font-size:12px;margin-top:2px;">Universal rules only (grammar, contrast, fonts)</div></div>
+        <span class="material-symbols-outlined" style="font-size:20px;opacity:0.5;">auto_awesome</span>
+        <div><div style="font-size:14px;font-weight:500;">Auto-Detect</div><div style="font-size:12px;margin-top:2px;">Gemini detects brand automatically from the asset</div></div>
     </div>`;
     brands.forEach(b => {
         const isActive = active && active.id === b.id;
@@ -665,9 +695,14 @@ function renderBrandSelectList() {
 }
 
 function selectBrand(id) {
-    setActiveBrand(id);
+    setActiveBrand(id, true); // user manually selected — persist it
     renderBrandSelectList();
     closeBrandModal();
+    // If we're in the inspector, re-evaluate brand rules instantly
+    if (activeFileIndex !== null && campaignData[activeFileIndex] &&
+        (campaignData[activeFileIndex].status === 'pass' || campaignData[activeFileIndex].status === 'fail')) {
+        reEvaluateBrandRules(activeFileIndex);
+    }
 }
 
 function checkAdminPasscode() {
@@ -849,7 +884,7 @@ async function extractDominantColors(file, count = 12) {
                     const pi=((y+dy)*SIZE+(x+dx))*4;
                     mad+=Math.abs(data[pi]-aR)+Math.abs(data[pi+1]-aG)+Math.abs(data[pi+2]-aB);
                 }
-                return (mad/n) < 18; // threshold: flat if mean deviation < 18
+                return (mad/n) < 10; // threshold: flat if mean deviation < 10 (tighter = less photo bleed)
             };
 
             const buckets = {};
@@ -868,8 +903,12 @@ async function extractDominantColors(file, count = 12) {
                 }
             }
             // If image is mostly photographic (very few flat pixels), return empty
-            if (flatCount < 25) { URL.revokeObjectURL(img.src); resolve([]); return; }
-            const sorted=Object.entries(buckets).sort((a,b)=>b[1]-a[1]).slice(0,count);
+            if (flatCount < 40) { URL.revokeObjectURL(img.src); resolve([]); return; }
+            // Only keep colors that appear in at least 0.5% of flat pixels (filters photo noise)
+            const minCount = Math.max(3, flatCount * 0.005);
+            const sorted=Object.entries(buckets)
+                .filter(([k,v]) => v >= minCount)
+                .sort((a,b)=>b[1]-a[1]).slice(0,count);
             const hexes=sorted.map(([key])=>{
                 const [r,g,b]=key.split(',').map(Number);
                 return '#'+[r,g,b].map(v=>Math.min(255,v).toString(16).padStart(2,'0')).join('').toUpperCase();
@@ -1407,8 +1446,10 @@ async function processSingleAsset(i) {
         if (aiData.detectedBrand && aiData.detectedBrand !== 'Unknown') {
             const autoMatch = fuzzyMatchBrand(aiData.detectedBrand);
             campaignData[i].autoDetectedBrand = autoMatch || null;
+            campaignData[i].assignedBrandId = autoMatch ? autoMatch.id : null;
+            // Auto-apply to badge only if user hasn't manually locked a brand
             if (autoMatch && !localStorage.getItem(ACTIVE_BRAND_KEY)) {
-                setActiveBrand(autoMatch.id);
+                setActiveBrand(autoMatch.id, false); // false = don't persist
             }
         } else {
             campaignData[i].autoDetectedBrand = null;
@@ -1581,9 +1622,30 @@ function openInspector(index) {
         document.getElementById('det-client').innerText=d.ai.detectedBrand||'Unknown';
         document.getElementById('det-font').innerText=d.ai.fontAnalysis?.bestGuess||'Unknown';
         document.getElementById('spec-density').innerText=d.ai.textDensityPercentage||'--%';
-        document.getElementById('note-copy').innerText=d.ai.grammar?.notes||'No issues found.';
-        document.getElementById('note-voice').innerText=d.ai.voiceTone?.notes||'--';
-        document.getElementById('note-brand').innerText=d.ai.branding?.notes||'Compliant.';
+        const grammarEl = document.getElementById('note-copy');
+        const grammarNotes = d.ai.grammar ? (d.ai.grammar.notes || 'No issues found.') : 'No issues found.';
+        const grammarStatus = d.ai.grammar ? (d.ai.grammar.status || 'Pass') : 'Pass';
+        const gIcon = grammarStatus.toLowerCase().includes('fail')
+            ? '<span class="spec-indicator fail" style="margin-right:6px;">Issues Found</span>'
+            : '<span class="spec-indicator pass" style="margin-right:6px;">All Good</span>';
+        grammarEl.innerHTML = gIcon + '<span style="font-size:13px;">' + grammarNotes + '</span>';
+        const voiceEl = document.getElementById('note-voice');
+        const voiceNotes = d.ai.voiceTone ? (d.ai.voiceTone.notes || '--') : '--';
+        const voiceStatus = d.ai.voiceTone ? (d.ai.voiceTone.status || '') : '';
+        if (voiceNotes && voiceNotes !== '--') {
+            const vIcon = voiceStatus.toLowerCase().includes('fail')
+                ? '<span class="spec-indicator fail" style="margin-right:6px;">Off Tone</span>'
+                : voiceStatus.toLowerCase().includes('pass')
+                ? '<span class="spec-indicator pass" style="margin-right:6px;">On Tone</span>'
+                : '';
+            voiceEl.innerHTML = vIcon + '<span style="font-size:13px;">' + voiceNotes + '</span>';
+        } else {
+            voiceEl.innerText = '--';
+        }
+        const brandNotesEl = document.getElementById('note-brand');
+        const brandNotes = d.ai.branding ? (d.ai.branding.notes || 'Compliant.') : 'Compliant.';
+        const brandStatus = d.ai.branding ? (d.ai.branding.status || '') : '';
+        brandNotesEl.innerHTML = renderBrandRulesSection(brandNotes, brandStatus);
 
         // CTA
         if(d.ai.ctaAnalysis&&d.ai.ctaAnalysis.ctaText){
@@ -1748,8 +1810,149 @@ function renderBrandBanner(d){
     }
 }
 
+// ── SIMPLIFIED BRAND RULES RENDERER ────────────────────────────────────────
+function renderSimplifiedBrandNotes(notesText) {
+    if (!notesText || notesText === 'Compliant.' || notesText === '--') return null;
+
+    // Ask Claude API to simplify — but since we don't call API here,
+    // we parse the raw text into structured items using heuristics
+    const lines = notesText.split(/\n|(?=\d+\.)|(?=[A-Z][a-z]+ *:)/).map(s => s.trim()).filter(Boolean);
+    const items = [];
+
+    lines.forEach(line => {
+        // Detect status from keywords
+        let status = 'warn';
+        const lower = line.toLowerCase();
+        if (lower.includes('(pass)') || lower.includes(': pass') || lower.match(/\bpass\b(?!.*fail)/)) status = 'pass';
+        if (lower.includes('(fail)') || lower.includes(': fail') || lower.includes('not approved') || lower.includes('not found') || lower.includes('not an approved')) status = 'fail';
+        if (lower.includes('(warn') || lower.includes('warning') || lower.includes('partial')) status = 'warn';
+
+        // Strip status markers from display text
+        let clean = line
+            .replace(/\(Pass\)|\(Fail\)|\(Warning[^)]*\)|\(Partial[^)]*\)/gi, '')
+            .replace(/^\d+\.\s*/, '')
+            .replace(/^[-•]\s*/, '')
+            .trim();
+        if (!clean || clean.length < 5) return;
+
+        // Generate plain-english summary (first ~60 chars of cleaned text)
+        // Extract the topic (before first colon or dash)
+        let topic = clean.split(/[:\-–]/)[0].trim();
+        if (topic.length > 50) topic = topic.substring(0, 47) + '...';
+        let detail = clean;
+
+        // Simplify common verbose patterns
+        let summary = clean;
+        if (summary.length > 80) summary = summary.substring(0, 77) + '...';
+
+        items.push({ status, topic, summary, detail });
+    });
+    return items;
+}
+
+function renderBrandRulesSection(notesText, statusText) {
+    if (!notesText) return '<div class="brand-notes-plain">No brand notes available.</div>';
+
+    const overall = (statusText || '').toLowerCase();
+    let overallClass = 'unverified', overallIcon = '●', overallMsg = 'Not verified';
+    if (overall.includes('pass')) { overallClass = 'pass'; overallIcon = '✓'; overallMsg = 'Looks on-brand'; }
+    else if (overall.includes('fail')) { overallClass = 'fail'; overallIcon = '✗'; overallMsg = 'Brand issues found'; }
+    else if (overall.includes('unverified')) { overallClass = 'unverified'; overallIcon = '?'; overallMsg = 'No brand profile to check against'; }
+
+    let html = '<div class="brand-overall ' + overallClass + '">'
+        + '<span style="font-size:16px;">' + overallIcon + '</span>'
+        + '<span>' + overallMsg + '</span>'
+        + '</div>';
+
+    const items = renderSimplifiedBrandNotes(notesText);
+    if (!items || items.length === 0) {
+        html += '<div class="brand-notes-plain">' + notesText + '</div>';
+        return html;
+    }
+
+    const iconMap = { pass: '✓', fail: '✗', warn: '!' };
+    items.forEach((item, i) => {
+        html += '<div class="brand-rule-item" id="bri-' + i + '">'
+            + '<div class="brand-rule-header" onclick="toggleBrandRule(' + i + ')">'
+            + '<div class="brand-rule-icon ' + item.status + '">' + iconMap[item.status] + '</div>'
+            + '<span class="brand-rule-label">' + item.topic + '</span>'
+            + '<span class="material-symbols-outlined brand-rule-chevron">expand_more</span>'
+            + '</div>'
+            + '<div class="brand-rule-detail">' + item.detail + '</div>'
+            + '</div>';
+    });
+    return html;
+}
+
+function toggleBrandRule(i) {
+    document.getElementById('bri-' + i).classList.toggle('open');
+}
+
+// Re-evaluate brand rules instantly when brand is switched post-analysis
+function reEvaluateBrandRules(index) {
+    const d = campaignData[index];
+    if (!d || !d.ai || d.ai.error) return;
+
+    const brand = getActiveBrand();
+
+    // Re-run brand rules check using existing Gemini data + new brand profile
+    // Build a mini-prompt context and update the branding notes field
+    if (brand) {
+        // Build what Gemini would check against the new brand
+        const palette = (brand.palette || []).join(', ') || 'Not specified';
+        const fonts = [brand.fontPrimary, brand.fontSecondary].filter(Boolean).join(' / ') || 'Not specified';
+
+        // Check font compliance locally
+        const detectedFont = (d.ai.fontAnalysis ? d.ai.fontAnalysis.bestGuess || '' : '').toLowerCase();
+        const approvedFonts = (brand.fontPrimary + ' ' + (brand.fontSecondary || '')).toLowerCase();
+        const fontWords = approvedFonts.split(/[\s\/,]+/).filter(w => w.length > 3);
+        const fontOk = fontWords.some(fw => detectedFont.includes(fw));
+
+        // Check palette compliance using already-extracted colors
+        const extractedColors = d.extractedColors || [];
+        const paletteResult = checkPaletteOnBrand(extractedColors, brand.palette || []);
+
+        // Build simplified verdict
+        const issues = [];
+        if (!fontOk && detectedFont && detectedFont !== 'unknown') {
+            issues.push('Font "' + d.ai.fontAnalysis.bestGuess + '" may not match approved fonts (' + fonts + ')');
+        }
+        if (paletteResult && paletteResult.status === 'off') {
+            issues.push('Colors: ' + paletteResult.detail);
+        }
+        if (paletteResult && paletteResult.status === 'partial') {
+            issues.push('Colors: ' + paletteResult.detail);
+        }
+
+        // Update branding object on aiData
+        if (issues.length === 0) {
+            d.ai.branding = { status: 'Pass', notes: 'Font and colors appear compliant with ' + brand.name + ' brand profile. Full rules require re-running QA.' };
+        } else {
+            d.ai.branding = { status: 'Fail', notes: issues.join('\n') + '\n\nNote: Re-run QA for full brand rules analysis against ' + brand.name + '.' };
+        }
+    } else {
+        d.ai.branding = { status: 'Unverified', notes: 'No brand profile selected.' };
+    }
+
+    // Recalculate overall status
+    const fails = calculateFailCount(d.ai, activeStandard);
+    d.status = fails > 0 ? 'fail' : 'pass';
+    updateCardStatusUI(index);
+
+    // Re-render the QA fields without full inspector reload
+    const brandNotesEl = document.getElementById('note-brand');
+    if (brandNotesEl) {
+        brandNotesEl.innerHTML = renderBrandRulesSection(
+            d.ai.branding.notes, d.ai.branding.status
+        );
+    }
+    renderBrandBanner(d);
+}
+
 // Expose all functions used in inline onclick attributes to global scope
 window.openBrandModal = openBrandModal;
+window.toggleBrandRule = toggleBrandRule;
+window.reEvaluateBrandRules = reEvaluateBrandRules;
 window.fuzzyMatchBrand = fuzzyMatchBrand;
 window.fuzzyMatchBrand = fuzzyMatchBrand;
 window.closeBrandModal = closeBrandModal;
