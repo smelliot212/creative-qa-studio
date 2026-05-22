@@ -617,7 +617,8 @@ function updateUploadBrandNotice() {
     }
 }
 
-// ── BRAND MODAL ─────────────────────────────────────────────────────────────
+// ── BRAND MODAL ──────────────────────────────────────────
+// Expose modal functions globally for inline onclick handlers───────────────────
 let adminUnlocked = false;
 let editingBrandId = null;
 
@@ -1614,10 +1615,10 @@ function renderContrastBlocks(analyses) {
         let n=item.sectionName||item.section||item.title||item.name||`Section ${i+1}`;
         let colors=getColorsFromAI(item);let bTxt=colors.txt;let bBg=colors.bg;
         let rat=calcRatio(bTxt,bBg);let pAll=isPass(rat,false)&&isPass(rat,true);
-        const sb=item._sampled?` <span style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;background:rgba(20,174,92,0.15);color:var(--pass-green);border:1px solid rgba(20,174,92,0.3);">SAMPLED</span>`:'';
+        const sampBadge=item._sampled?` <span style="font-size:10px;font-weight:600;padding:1px 5px;border-radius:3px;background:rgba(20,174,92,0.15);color:var(--pass-green);border:1px solid rgba(20,174,92,0.3);">SAMPLED</span>`:'';
         let html=`<div class="contrast-block">
             <div class="c-header">
-                <div style="font-weight:600;font-size:13px;color:var(--text-main);line-height:1.4;padding-right:12px;">${n}${sb}</div>
+                <div style="font-weight:600;font-size:13px;color:var(--text-main);line-height:1.4;padding-right:12px;">${n}${sampBadge}</div>
                 <div style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;white-space:nowrap;color:${pAll?'var(--pass-green)':'var(--fail-red)'}" id="status-ind-${i}">
                     <div class="status-dot ${pAll?'pass':'fail'}"></div><span class="status-text">${pAll?'Pass':'Fail'}</span>
                     <span id="rat-${i}" style="font-family:'SF Mono',monospace;">${rat.toFixed(2)}</span>:1
@@ -1644,6 +1645,45 @@ function renderContrastBlocks(analyses) {
         pb.addEventListener('input',e=>ovr('b',e.target.value));hb.addEventListener('change',e=>ovr('b',e.target.value));
     });
 }
+
+// Expose all functions used in inline onclick attributes to global scope
+window.openBrandModal = openBrandModal;
+window.closeBrandModal = closeBrandModal;
+window.switchBrandTab = switchBrandTab;
+window.selectBrand = selectBrand;
+window.checkAdminPasscode = checkAdminPasscode;
+window.newBrandProfile = newBrandProfile;
+window.editBrandProfile = editBrandProfile;
+window.deleteBrandProfile = deleteBrandProfile;
+window.addPaletteSwatch = addPaletteSwatch;
+window.removePaletteSwatch = removePaletteSwatch;
+window.saveBrandProfile = saveBrandProfile;
+window.cancelBrandEdit = cancelBrandEdit;
+window.exportBrandsJSON = exportBrandsJSON;
+window.openResetModal = openResetModal;
+window.closeResetModal = closeResetModal;
+window.resolveDuplicates = resolveDuplicates;
+window.cancelDuplicateUpload = cancelDuplicateUpload;
+window.toggleProcessing = toggleProcessing;
+window.rerunCurrentAsset = rerunCurrentAsset;
+window.exportCSV = exportCSV;
+window.copyExtractedText = copyExtractedText;
+window.openLibrary = openLibrary;
+window.openInspector = openInspector;
+window.setLayout = setLayout;
+window.setCardSize = setCardSize;
+window.setStandard = setStandard;
+window.switchSidebarTab = switchSidebarTab;
+window.recalculateSpecs = recalculateSpecs;
+window.clearSelection = clearSelection;
+window.handleSelect = handleSelect;
+window.saveInlineNote = saveInlineNote;
+window.saveNotes = saveNotes;
+window.goPrev = goPrev;
+window.goNext = goNext;
+window.sortQueue = sortQueue;
+window.gifPlayer = gifPlayer;
+
 </script>
 </body>
 </html>
