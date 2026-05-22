@@ -346,7 +346,7 @@
     <div class="toolbar-group">
         <span class="material-symbols-outlined" style="color:var(--accent-purple);">diamond</span>
         <span style="font-weight:600;font-size:15px;">Creative QA Studio</span>
-        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 7px;border-radius:100px;background:rgba(100,92,255,0.15);color:var(--accent-purple);border:1px solid rgba(100,92,255,0.3);font-family:'SF Mono',monospace;cursor:default;">v2026.05.22.1343</span>
+        <span style="font-size:10px;font-weight:700;letter-spacing:0.06em;padding:2px 7px;border-radius:100px;background:rgba(100,92,255,0.15);color:var(--accent-purple);border:1px solid rgba(100,92,255,0.3);font-family:'SF Mono',monospace;cursor:default;">v2026.05.22.1358</span>
     </div>
 
     <!-- Brand Badge (center) -->
@@ -1682,6 +1682,72 @@ function renderContrastBlocks(analyses) {
     });
 }
 
+function fuzzyMatchBrand(detectedName) {
+    if (!detectedName || brandsCache.length === 0) return null;
+    const clean = detectedName.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+    let bestMatch = null, bestScore = 0;
+    brandsCache.forEach(function(brand) {
+        const bc = brand.name.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+        if (clean === bc) { bestMatch = brand; bestScore = 100; return; }
+        if (clean.includes(bc) || bc.includes(clean)) { if (90 > bestScore) { bestMatch = brand; bestScore = 90; } return; }
+        const dw = clean.split(' ').filter(function(w){ return w.length > 2; });
+        const bw = bc.split(' ').filter(function(w){ return w.length > 2; });
+        const overlap = dw.filter(function(w){ return bw.some(function(b){ return b.includes(w) || w.includes(b); }); });
+        const score = overlap.length > 0 ? (overlap.length / Math.max(dw.length, bw.length)) * 80 : 0;
+        if (score > bestScore) { bestMatch = brand; bestScore = score; }
+    });
+    return bestScore >= 40 ? bestMatch : null;
+}
+
+function renderBrandBanner(d){
+    const wrap = document.getElementById('brand-check-banner-wrap');
+    const brand = getActiveBrand();
+    const detName = d.ai ? d.ai.detectedBrand : null;
+    const autoMatch = d.autoDetectedBrand || null;
+
+    let autoNote = '';
+    if (detName && detName !== 'Unknown') {
+        if (autoMatch) {
+            autoNote = '<div style="font-size:11px;margin-top:3px;opacity:0.75;">AI detected: <b>' + detName + '</b> — matched to profile automatically.</div>';
+        } else if (!brand) {
+            autoNote = '<div style="font-size:11px;margin-top:3px;opacity:0.75;">AI detected: <b>' + detName + '</b> — no matching profile found.</div>';
+        }
+    }
+
+    const autoTag = autoMatch
+        ? '<span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.15);margin-left:5px;">AUTO</span>'
+        : '';
+
+    if (!brand) {
+        wrap.innerHTML = '<div class="brand-check-banner unverified">'
+            + '<span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">info</span>'
+            + '<div>No brand selected. Universal rules only. '
+            + '<button onclick="openBrandModal()" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:12px;padding:0;font-family:var(--font-ui);">Select brand</button>'
+            + autoNote + '</div></div>';
+        return;
+    }
+    if (d.status === 'pending' || d.status === 'loading' || !d.ai) {
+        wrap.innerHTML = '<div class="brand-check-banner verified">'
+            + '<span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">verified</span>'
+            + '<div>Checking against <b>' + brand.name + '</b>' + autoTag + '</div></div>';
+        return;
+    }
+    const bs = (d.ai.branding ? d.ai.branding.status || '' : '').toLowerCase();
+    if (bs.includes('fail')) {
+        wrap.innerHTML = '<div class="brand-check-banner partial">'
+            + '<span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">warning</span>'
+            + '<div><b>' + brand.name + '</b>' + autoTag + ' — violations found. See Brand Rules below.' + autoNote + '</div></div>';
+    } else if (bs.includes('pass')) {
+        wrap.innerHTML = '<div class="brand-check-banner verified">'
+            + '<span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">verified</span>'
+            + '<div>Checked against <b>' + brand.name + '</b>' + autoTag + ' — compliant.' + autoNote + '</div></div>';
+    } else {
+        wrap.innerHTML = '<div class="brand-check-banner unverified">'
+            + '<span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;margin-top:1px;">help</span>'
+            + '<div>Brand check unverified for <b>' + brand.name + '</b>' + autoTag + '.' + autoNote + '</div></div>';
+    }
+}
+
 // Expose all functions used in inline onclick attributes to global scope
 window.openBrandModal = openBrandModal;
 window.fuzzyMatchBrand = fuzzyMatchBrand;
@@ -1724,27 +1790,4 @@ window.gifPlayer = gifPlayer;
 
 </script>
 </body>
-</html>function renderBrandBanner(d){
-    const wrap=document.getElementById('brand-check-banner-wrap');
-    const brand=getActiveBrand();
-    const detName=d.ai?.detectedBrand;
-    const autoMatch=d.autoDetectedBrand;
-    let autoNote='';
-    if(detName&&detName!=='Unknown'){
-        if(autoMatch)autoNote='<div style="font-size:11px;margin-top:3px;opacity:0.75;">AI detected: <b>'+detName+'</b> — matched to profile automatically.</div>';
-        else if(!brand)autoNote='<div style="font-size:11px;margin-top:3px;opacity:0.75;">AI detected: <b>'+detName+'</b> — no matching profile. <button onclick="openBrandModal()" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:11px;padding:0;font-family:var(--font-ui);">Select manually →</button></div>';
-    }
-    const autoTag=autoMatch?'<span style="font-size:10px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.15);margin-left:5px;letter-spacing:0.03em;">AUTO</span>':'';
-    if(!brand){
-        wrap.innerHTML='<div class="brand-check-banner unverified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">info</span><div>No brand selected. Universal rules only. <button onclick="openBrandModal()" style="background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:12px;padding:0;font-family:var(--font-ui);">Select brand →</button>'+autoNote+'</div></div>';
-        return;
-    }
-    if(d.status==='pending'||d.status==='loading'||!d.ai){
-        wrap.innerHTML='<div class="brand-check-banner verified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">verified</span><div>Checking against <b>'+brand.name+'</b>'+autoTag+'</div></div>';
-        return;
-    }
-    const bs=(d.ai?.branding?.status||'').toLowerCase();
-    if(bs.includes('fail'))wrap.innerHTML='<div class="brand-check-banner partial"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">warning</span><div><b>'+brand.name+'</b>'+autoTag+' — violations found. See Brand Rules below.'+autoNote+'</div></div>';
-    else if(bs.includes('pass'))wrap.innerHTML='<div class="brand-check-banner verified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">verified</span><div>Checked against <b>'+brand.name+'</b>'+autoTag+' — compliant.'+autoNote+'</div></div>';
-    else wrap.innerHTML='<div class="brand-check-banner unverified"><span class="material-symbols-outlined" style="font-size:15px;flex-shrink:0;">help</span><div>Brand check unverified for <b>'+brand.name+'</b>'+autoTag+'.'+autoNote+'</div></div>';
-}
+</html>
